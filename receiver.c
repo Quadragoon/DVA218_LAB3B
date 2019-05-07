@@ -33,10 +33,10 @@ int main()
 
     printf("Socket setup and bound successfully.\n");
 
-    char* dataBuffer;
-    if ((dataBuffer = malloc(DATA_BUFFER_SIZE)) == NULL)
+    char* packetBuffer;
+    if ((packetBuffer = malloc(PACKET_BUFFER_SIZE)) == NULL)
     {
-        CRASHWITHMESSAGE("dataBuffer malloc failed");
+        CRASHWITHMESSAGE("memoryBuffer malloc failed");
     }
 
     struct sockaddr_in senderAddress;
@@ -44,11 +44,11 @@ int main()
     unsigned int addressLength = sizeof(senderAddress);
     int bytesReceived = 0;
 
-    bytesReceived = ReceiveMessage(socket_fd, dataBuffer, &senderAddress, &addressLength);
-    printf("%d bytes received: %s\n", bytesReceived, dataBuffer);
-    strcpy(dataBuffer, "bOnsly");
-    printf("Sending message: %s\n", dataBuffer);
-    SendMessage(socket_fd, dataBuffer, strlen(dataBuffer), &senderAddress, addressLength);
+    bytesReceived = ReceiveMessage(socket_fd, packetBuffer, &senderAddress, &addressLength);
+    printf("%d bytes received: %s\n", bytesReceived, packetBuffer);
+    strcpy(packetBuffer, "bOnsly");
+    printf("Sending message: %s\n", packetBuffer);
+    SendMessage(socket_fd, packetBuffer, strlen(packetBuffer), &senderAddress, addressLength);
     sleep(1);
 
     return 0;

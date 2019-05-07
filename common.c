@@ -9,7 +9,16 @@
 
 #define CRASHWITHMESSAGE(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
-#define DATA_BUFFER_SIZE 2048
+#define PACKET_BUFFER_SIZE 2048
+
+typedef struct packet
+{
+    char flags;
+    unsigned short sequenceNumber;
+    char dataLength;
+    char data[256];
+    char checksum;
+} packet;
 
 int InitializeSocket()
 {
@@ -22,9 +31,9 @@ int InitializeSocket()
         return socket_fd;
 }
 
-ssize_t ReceiveMessage(int socket_fd, char* dataBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
+ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
 {
-    int retval = recvfrom(socket_fd, dataBuffer, DATA_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr*)senderAddress, addressLength);
+    int retval = recvfrom(socket_fd, packetBuffer, PACKET_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr*)senderAddress, addressLength);
     if (retval < 0)
     {
         CRASHWITHMESSAGE("SendMessage() failed");

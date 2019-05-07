@@ -18,12 +18,12 @@ int main()
 
     printf("Socket setup successfully.\n");
 
-    char* dataBuffer;
-    if ((dataBuffer = malloc(DATA_BUFFER_SIZE)) == NULL)
+    char* packetBuffer;
+    if ((packetBuffer = malloc(PACKET_BUFFER_SIZE)) == NULL)
     {
-        CRASHWITHMESSAGE("dataBuffer malloc failed");
+        CRASHWITHMESSAGE("packetBuffer malloc failed");
     }
-    strcpy(dataBuffer, "jonas");
+    strcpy(packetBuffer, "jonas");
 
     struct sockaddr_in receiverAddress;
     receiverAddress.sin_family = AF_INET;
@@ -32,11 +32,11 @@ int main()
 
     unsigned int addressLength = sizeof(receiverAddress);
 
-    printf("Sending message: %s\n", dataBuffer);
-    SendMessage(socket_fd, dataBuffer, strlen(dataBuffer), &receiverAddress, addressLength);
+    printf("Sending message: %s\n", packetBuffer);
+    SendMessage(socket_fd, packetBuffer, strlen(packetBuffer), &receiverAddress, addressLength);
     printf("Waiting for return message.\n");
-    ReceiveMessage(socket_fd, dataBuffer, &receiverAddress, &addressLength);
-    printf("Message received: %s\n", dataBuffer);
+    ReceiveMessage(socket_fd, packetBuffer, &receiverAddress, &addressLength);
+    printf("Message received: %s\n", packetBuffer);
     sleep(1);
 
     return 0;
