@@ -55,7 +55,8 @@ int main()
             printf("Data checks out\n");
             SetPacketFlag(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, 1);
             strcpy(packetToSend.data, "BONSLY");
-            packetToSend.sequenceNumber = packetBuffer.sequenceNumber + 1;
+            packetToSend.dataLength = sizeof("BONSLY");
+            packetToSend.sequenceNumber++;
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
     }

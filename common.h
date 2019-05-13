@@ -25,8 +25,8 @@
 struct packet
 {
     byte flags;
-    unsigned short sequenceNumber;
     byte dataLength;
+    unsigned short sequenceNumber;
     unsigned short checksum;
     byte data[255];
 };

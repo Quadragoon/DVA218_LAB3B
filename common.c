@@ -20,9 +20,10 @@ int InitializeSocket()
         return socket_fd;
 }
 
-ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength)
+ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress,
+                    unsigned int addressLength)
 {
-    int retval = sendto(socket_fd, dataBuffer, length, MSG_CONFIRM, (struct sockaddr*)receiverAddress, addressLength);
+    int retval = sendto(socket_fd, dataBuffer, length, MSG_CONFIRM, (struct sockaddr*) receiverAddress, addressLength);
     if (retval < 0)
     {
         CRASHWITHERROR("SendMessage() failed");
@@ -31,9 +32,11 @@ ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const str
         return retval;
 }
 
-ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
+ssize_t
+ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
 {
-    int retval = recvfrom(socket_fd, packetBuffer, PACKET_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr*)senderAddress, addressLength);
+    int retval = recvfrom(socket_fd, packetBuffer, PACKET_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr*) senderAddress,
+                          addressLength);
     if (retval < 0)
     {
         CRASHWITHERROR("SendMessage() failed");
@@ -42,12 +45,15 @@ ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* se
         return retval;
 }
 
-ssize_t SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength)
+ssize_t
+SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength)
 {
+    printf("Sending packet\n");
     packetToSend->checksum = 0;
     packetToSend->checksum = (CalculateChecksum(packetToSend) ^ 65535u);
     int packetLength = PACKET_HEADER_LENGTH + packetToSend->dataLength;
-    int retval = sendto(socket_fd, packetToSend, packetLength, MSG_CONFIRM, (struct sockaddr*)receiverAddress, addressLength);
+    int retval = sendto(socket_fd, packetToSend, packetLength, MSG_CONFIRM, (struct sockaddr*) receiverAddress,
+                        addressLength);
     if (retval < 0)
     {
         CRASHWITHERROR("SendMessage() failed");
@@ -56,21 +62,26 @@ ssize_t SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in
         return retval;
 }
 
-ssize_t ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
+ssize_t
+ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
 {
-    int retval = recvfrom(socket_fd, packetBuffer, sizeof(packet), MSG_WAITALL, (struct sockaddr*)senderAddress, addressLength);
+    printf("Receiving packet\n");
+    int retval = recvfrom(socket_fd, packetBuffer, sizeof(packet), MSG_WAITALL, (struct sockaddr*) senderAddress,
+                          addressLength);
     if (retval < 0)
     {
         CRASHWITHERROR("ReceivePacket() failed");
     }
     else
     {
+        packetBuffer->sequenceNumber = ntohs(packetBuffer->sequenceNumber);
+        packetBuffer->checksum = ntohs(packetBuffer->checksum);
         unsigned short checksum = CalculateChecksum(packetBuffer);
         if (checksum == 65535u)
             return retval;
         else
         {
-            printf("ReceivePacket() failed: checksum incorrect\nExpected 65535, got %d\n", checksum);
+            printf("ReceivePacket() failed: checksum incorrect\nExpected 65535, got %d (off by %d)\n", checksum, 65535-checksum);
             exit(EXIT_FAILURE);
         }
     }
@@ -108,15 +119,21 @@ int SetPacketFlag(packet* packet, uint flag, int value)
 unsigned short CalculateChecksum(const packet* packet)
 {
     unsigned int total = 0;
-    byte* packetBytes = (byte*)packet;
+    byte* packetBytes = (byte*) packet;
 
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
-    for (int i = 0; i < numBytesInPacket; i+=2)
+    for (int i = 0; i < numBytesInPacket; i += 2)
     {
         if (i == numBytesInPacket - 1)
             total += packetBytes[i] * 256;
         else
-            total += (unsigned short)packetBytes[i];
+        {
+            byte firstByte = packetBytes[i];
+            byte secondByte = packetBytes[i+1]; //TODO: shorts skickas little-endian, vilket fuckar upp checksummmering
+            unsigned short shortToAdd = 0;
+            shortToAdd = ((packetBytes[i] * 256) + packetBytes[i+1]);
+            total += shortToAdd;
+        }
     }
 
     while (total > 65535)
@@ -126,5 +143,6 @@ unsigned short CalculateChecksum(const packet* packet)
         total += last16;
     }
 
+    printf("Checksum comes to %d\n", total);
     return total;
 }
