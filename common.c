@@ -74,7 +74,7 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
     }
     else
     {
-        packetBuffer->sequenceNumber = ntohs(packetBuffer->sequenceNumber);
+        //packetBuffer->sequenceNumber = ntohs(packetBuffer->sequenceNumber); //TODO: behövs inte???
         packetBuffer->checksum = ntohs(packetBuffer->checksum);
         unsigned short checksum = CalculateChecksum(packetBuffer);
         if (checksum == 65535u)
