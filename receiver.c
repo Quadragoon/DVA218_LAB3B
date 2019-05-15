@@ -31,7 +31,7 @@ int main()
         CRASHWITHERROR("bind() failed");
     }
 
-    printf("Socket setup and bound successfully.\n");
+    DEBUGMESSAGE(1, "Socket setup and bound successfully.");
 
     unsigned short sequence = 0;
 
@@ -46,13 +46,13 @@ int main()
     memset(&packetBuffer, 0, sizeof(packet));
 
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
-    printf("Packet received\n");
+    DEBUGMESSAGE(1, "Packet received");
     if (packetBuffer.flags & PACKETFLAG_SYN)
     {
-        printf("Packet is SYN\n");
+        DEBUGMESSAGE(2, "Flags OK");
         if (strcmp(packetBuffer.data, "JONAS") == 0)
         {
-            printf("Data checks out\n");
+            DEBUGMESSAGE(2, "Data OK");
             SetPacketFlag(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, 1);
             strcpy(packetToSend.data, "BONSLY");
             packetToSend.dataLength = sizeof("BONSLY");

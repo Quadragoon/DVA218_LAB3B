@@ -17,7 +17,7 @@ int main()
 {
     socket_fd = InitializeSocket();
 
-    printf("Socket setup successfully.\n");
+    DEBUGMESSAGE(1, "Socket setup successfully.");
 
     struct sockaddr_in receiverAddress, senderAddress;
     memset(&receiverAddress, 0, sizeof(struct sockaddr_in));
@@ -46,15 +46,24 @@ int main()
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
     if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK)
     {
-        printf("Flags OK\n");
-        if (packetBuffer.sequenceNumber == sequence + 1);
+        DEBUGMESSAGE(3, "Flags OK");
+        if (packetBuffer.sequenceNumber == (sequence + 1))
         {
-            printf("Sequence OK\n");
+            DEBUGMESSAGE(3, "Sequence OK");
             if (strcmp(packetBuffer.data, "BONSLY") == 0)
             {
-                printf("Data OK.\nSeems to work, which is weird\n");
+                DEBUGMESSAGE(2, "Data OK.\nSeems to work, which is weird");
             }
         }
+        else
+        {
+            DEBUGMESSAGE(2, "Sequence NOT OK");
+        }
+
+    }
+    else
+    {
+        DEBUGMESSAGE(2, "Flags NOT OK");
     }
 
     return 0;

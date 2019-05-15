@@ -48,12 +48,12 @@ ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddr
 ssize_t
 SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength)
 {
-    printf("Sending packet\n");
+    DEBUGMESSAGE(1, "Sending packet");
     packetToSend->checksum = 0;
     packetToSend->checksum = (CalculateChecksum(packetToSend) ^ 65535u);
 
-    printf("Checksum is set to %d\n", packetToSend->checksum);
-    printf("Sequence is set to %d\n", packetToSend->sequenceNumber);
+    DEBUGMESSAGE(3, "Checksum is set to %d\n", packetToSend->checksum);
+    DEBUGMESSAGE(3, "Sequence is set to %d\n", packetToSend->sequenceNumber);
 
     int packetLength = PACKET_HEADER_LENGTH + packetToSend->dataLength;
     int retval = sendto(socket_fd, packetToSend, packetLength, MSG_CONFIRM, (struct sockaddr*) receiverAddress,
@@ -69,7 +69,7 @@ SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiv
 ssize_t
 ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
 {
-    printf("Receiving packet\n");
+    DEBUGMESSAGE(3, "Receiving packet");
     int retval = recvfrom(socket_fd, packetBuffer, sizeof(packet), MSG_WAITALL, (struct sockaddr*) senderAddress,
                           addressLength);
     if (retval < 0)
@@ -84,7 +84,7 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
             return retval;
         else
         {
-            printf("ReceivePacket() failed: checksum incorrect\nExpected 65535, got %d (off by %d)\n", checksum, 65535-checksum);
+            DEBUGMESSAGE(2, "ReceivePacket() failed: checksum incorrect\nExpected 65535, got %d (off by %d)\n", checksum, 65535-checksum);
             exit(EXIT_FAILURE);
         }
     }
