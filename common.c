@@ -51,6 +51,10 @@ SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiv
     printf("Sending packet\n");
     packetToSend->checksum = 0;
     packetToSend->checksum = (CalculateChecksum(packetToSend) ^ 65535u);
+
+    printf("Checksum is set to %d\n", packetToSend->checksum);
+    printf("Sequence is set to %d\n", packetToSend->sequenceNumber);
+
     int packetLength = PACKET_HEADER_LENGTH + packetToSend->dataLength;
     int retval = sendto(socket_fd, packetToSend, packetLength, MSG_CONFIRM, (struct sockaddr*) receiverAddress,
                         addressLength);
@@ -74,8 +78,7 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
     }
     else
     {
-        //packetBuffer->sequenceNumber = ntohs(packetBuffer->sequenceNumber); //TODO: behövs inte???
-        packetBuffer->checksum = ntohs(packetBuffer->checksum);
+        packetBuffer->checksum = ntohs(packetBuffer->checksum); // TODO: behövs av någon anledning, inte hundra på varför
         unsigned short checksum = CalculateChecksum(packetBuffer);
         if (checksum == 65535u)
             return retval;
@@ -128,8 +131,6 @@ unsigned short CalculateChecksum(const packet* packet)
             total += packetBytes[i] * 256;
         else
         {
-            byte firstByte = packetBytes[i];
-            byte secondByte = packetBytes[i+1]; //TODO: shorts skickas little-endian, vilket fuckar upp checksummmering
             unsigned short shortToAdd = 0;
             shortToAdd = ((packetBytes[i] * 256) + packetBytes[i+1]);
             total += shortToAdd;
@@ -137,12 +138,7 @@ unsigned short CalculateChecksum(const packet* packet)
     }
 
     while (total > 65535)
-    {
-        unsigned short last16 = total & 65535u;
-        total = (total >> 16u);
-        total += last16;
-    }
+        total -= 65535;
 
-    printf("Checksum comes to %d\n", total);
     return total;
 }

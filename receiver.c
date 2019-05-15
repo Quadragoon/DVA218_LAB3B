@@ -56,7 +56,7 @@ int main()
             SetPacketFlag(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, 1);
             strcpy(packetToSend.data, "BONSLY");
             packetToSend.dataLength = sizeof("BONSLY");
-            packetToSend.sequenceNumber++;
+            packetToSend.sequenceNumber = packetBuffer.sequenceNumber;
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
     }

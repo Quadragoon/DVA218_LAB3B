@@ -31,6 +31,7 @@ int main()
     unsigned int senderAddressLength = sizeof(senderAddress);
 
     packet packetToSend, packetBuffer;
+    sequence = 23456;
     packetToSend.sequenceNumber = sequence;
     if (SetPacketFlag(&packetToSend, PACKETFLAG_SYN, 1) < 0)
     {
@@ -43,12 +44,16 @@ int main()
     SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
 
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
-    if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK
-    && packetBuffer.sequenceNumber == sequence + 1)
+    if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK)
     {
-        if (strcmp(packetBuffer.data, "BONSLY") == 0)
+        printf("Flags OK\n");
+        if (packetBuffer.sequenceNumber == sequence + 1);
         {
-            printf("Seems to work, which is weird\n");
+            printf("Sequence OK\n");
+            if (strcmp(packetBuffer.data, "BONSLY") == 0)
+            {
+                printf("Data OK.\nSeems to work, which is weird\n");
+            }
         }
     }
 
