@@ -52,8 +52,7 @@ SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiv
     packetToSend->checksum = 0;
     packetToSend->checksum = (CalculateChecksum(packetToSend) ^ 65535u);
 
-    DEBUGMESSAGE(3, "Checksum is set to %d\n", packetToSend->checksum);
-    DEBUGMESSAGE(3, "Sequence is set to %d\n", packetToSend->sequenceNumber);
+    DEBUGMESSAGE(3, "Checksum is set to %d", packetToSend->checksum);
 
     int packetLength = PACKET_HEADER_LENGTH + packetToSend->dataLength;
     int retval = sendto(socket_fd, packetToSend, packetLength, MSG_CONFIRM, (struct sockaddr*) receiverAddress,
@@ -69,7 +68,7 @@ SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiv
 ssize_t
 ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
 {
-    DEBUGMESSAGE(3, "Receiving packet");
+    DEBUGMESSAGE(1, "Receiving packet");
     int retval = recvfrom(socket_fd, packetBuffer, sizeof(packet), MSG_WAITALL, (struct sockaddr*) senderAddress,
                           addressLength);
     if (retval < 0)
@@ -92,28 +91,25 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
 
 // Sets a flag in a packet to the specified value
 // Returns 1 if the flag was changed, 0 if the flag remains the same, and -1 on error.
-int SetPacketFlag(packet* packet, uint flag, int value)
+int SetPacketFlag(packet* packet, uint flagToModify, int value)
 {
-    // First we do a bit of sanity checking on values
-    if (flag > 128)
+    // First, do a bit of sanity checking on values
+    if (flagToModify > 255)
         return -1;
     if (value < 0 || value > 1)
         return -1;
 
-    int originalValue = packet->flags & flag;
-    if (originalValue == flag * value)
-        return 0; // The flag is already set how we want it. Nothing was changed.
+    int originalValue = packet->flags & flagToModify;
+    if (originalValue == flagToModify * value)
+        return 0; // The flag is already set how we want it. Nothing changed, return 0.
     else
     {
-        if (originalValue == 0)
-            packet->flags = (packet->flags | flag);
-        else if (originalValue >= 1)
-        {
-            packet->flags = (packet->flags | flag);
-            packet->flags = (packet->flags - flag);
-        }
+        if (value == 0)
+            packet->flags -= (packet->flags & flagToModify);
+        else if (value == 1)
+            packet->flags = packet->flags | flagToModify;
         else
-            return -1; // Something went horribly wrong, the original value is out of bounds somehow???
+            return -1; // Something went horribly wrong, value is out of bounds somehow???
 
         return 1; // The flag was changed, so we're returning 1
     }
@@ -141,4 +137,23 @@ unsigned short CalculateChecksum(const packet* packet)
         total -= 65535;
 
     return total;
+}
+
+int WritePacket(packet* packet, uint flags, void* data, byte dataLength, unsigned short sequenceNumber)
+{
+    SetPacketFlag(packet, 0b11111111, 0); // clear all flags
+    SetPacketFlag(packet, flags, 1);      // ... and set the ones requested
+
+    for (int i = 0; i < dataLength; i++)
+    {
+        byte* dataBytes = (byte*)data;
+        packet->data[i] = dataBytes[i];
+    }
+    packet->dataLength = dataLength;
+
+    packet->sequenceNumber = sequenceNumber;
+
+    packet->checksum = 0;
+    packet->checksum = CalculateChecksum(packet);
+    return 1; // 1 is returned on success
 }

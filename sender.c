@@ -12,6 +12,7 @@
 
 int socket_fd;
 unsigned short sequence = 0;
+unsigned short awaitedAcknowledgements[255];
 
 int main()
 {
@@ -42,12 +43,12 @@ int main()
     packetToSend.dataLength = sizeof("JONAS");
 
     SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
-
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+
     if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK)
     {
         DEBUGMESSAGE(3, "Flags OK");
-        if (packetBuffer.sequenceNumber == (sequence + 1))
+        if (packetBuffer.sequenceNumber == (sequence))
         {
             DEBUGMESSAGE(3, "Sequence OK");
             if (strcmp(packetBuffer.data, "BONSLY") == 0)

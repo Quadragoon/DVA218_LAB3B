@@ -9,11 +9,12 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <string.h>
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
-#define DEBUGLEVEL 2
+#define DEBUGLEVEL 3
 #define DEBUGMESSAGE(level, ...) if (DEBUGLEVEL >= level){printf(__VA_ARGS__); printf("\n");}
 
 #define LISTENING_PORT 23456
@@ -43,7 +44,8 @@ ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* se
 ssize_t SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
 ssize_t ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
 
-int SetPacketFlag(packet* packet, uint flag, int value);
+int SetPacketFlag(packet* packet, uint flagToModify, int value);
 unsigned short CalculateChecksum(const packet* packet);
+int WritePacket(packet* packet, uint flags, void* data, byte dataLength, unsigned short sequenceNumber);
 
 #endif //DVA218_LAB3B_COMMON_H

@@ -46,19 +46,23 @@ int main()
     memset(&packetBuffer, 0, sizeof(packet));
 
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
-    DEBUGMESSAGE(1, "Packet received");
     if (packetBuffer.flags & PACKETFLAG_SYN)
     {
-        DEBUGMESSAGE(2, "Flags OK");
+        DEBUGMESSAGE(3, "Flags OK");
         if (strcmp(packetBuffer.data, "JONAS") == 0)
         {
-            DEBUGMESSAGE(2, "Data OK");
-            SetPacketFlag(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, 1);
-            strcpy(packetToSend.data, "BONSLY");
-            packetToSend.dataLength = sizeof("BONSLY");
-            packetToSend.sequenceNumber = packetBuffer.sequenceNumber;
+            DEBUGMESSAGE(3, "Data OK");
+            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, "BONSLY", sizeof("BONSLY"), packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
+        else
+        {
+            DEBUGMESSAGE(2, "Data NOT OK");
+        }
+    }
+    else
+    {
+        DEBUGMESSAGE(2, "Flags NOT OK");
     }
 
     return 0;
