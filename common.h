@@ -14,7 +14,7 @@
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
-#define DEBUGLEVEL 1
+#define DEBUGLEVEL 4
 #define DEBUGMESSAGE(level, ...) if (DEBUGLEVEL >= level){printf(__VA_ARGS__); printf("\n");}
 #define DEBUGMESSAGE_NONEWLINE(level, ...) if (DEBUGLEVEL >= level){printf(__VA_ARGS__);}
 
