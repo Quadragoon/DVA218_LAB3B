@@ -14,7 +14,7 @@
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
-#define DEBUGLEVEL 3
+#define DEBUGLEVEL 1
 #define DEBUGMESSAGE(level, ...) if (DEBUGLEVEL >= level){printf(__VA_ARGS__); printf("\n");}
 
 #define LISTENING_PORT 23456

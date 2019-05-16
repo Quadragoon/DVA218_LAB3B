@@ -152,8 +152,5 @@ int WritePacket(packet* packet, uint flags, void* data, byte dataLength, unsigne
     packet->dataLength = dataLength;
 
     packet->sequenceNumber = sequenceNumber;
-
-    packet->checksum = 0;
-    packet->checksum = CalculateChecksum(packet);
     return 1; // 1 is returned on success
 }
