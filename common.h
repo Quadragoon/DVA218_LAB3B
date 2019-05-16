@@ -16,6 +16,7 @@
 
 #define DEBUGLEVEL 1
 #define DEBUGMESSAGE(level, ...) if (DEBUGLEVEL >= level){printf(__VA_ARGS__); printf("\n");}
+#define DEBUGMESSAGE_NONEWLINE(level, ...) if (DEBUGLEVEL >= level){printf(__VA_ARGS__);}
 
 #define LISTENING_PORT 23456
 #define PACKET_BUFFER_SIZE 2048
