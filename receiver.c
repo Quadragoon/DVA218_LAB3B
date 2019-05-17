@@ -21,6 +21,9 @@
 #define RESET "\x1B[0m"
 //----------------------------------------------
 
+#define MIN_ACCEPTED_WINDOW_SIZE 1
+#define MAX_ACCEPTED_WINDOW_SIZE 1
+
 int socket_fd;
 
 int main()
@@ -59,21 +62,30 @@ int main()
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
     if (packetBuffer.flags & PACKETFLAG_SYN)
     {
-        DEBUGMESSAGE(3, "Flags OK");
-        if (strcmp(packetBuffer.data, "JONAS") == 0)
+        DEBUGMESSAGE(3, "SYN: Flags "GRN"OK"RESET);
+        byte requestedWindowSize = packetBuffer.data[0];
+        if (requestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && requestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
         {
-            DEBUGMESSAGE(3, "Data OK");
-            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, "BONSLY", sizeof("BONSLY"), packetBuffer.sequenceNumber);
+            DEBUGMESSAGE(3, "SYN: Data "GRN"OK"RESET);
+            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, &requestedWindowSize, sizeof(byte), packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
+        /*else if (requestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE)
+        {
+            // TODO: window size negotiation, other than just acceptance
+        }
+        else if (requestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
+        {
+            // TODO: window size negotiation, other than just acceptance
+        }*/
         else
         {
-            DEBUGMESSAGE(2, "Data NOT OK");
+            DEBUGMESSAGE(2, "SYN: Data "RED"NOT OK"RESET);
         }
     }
     else
     {
-        DEBUGMESSAGE(2, "Flags NOT OK");
+        DEBUGMESSAGE(2, "SYN: Flags "RED"NOT OK"RESET);
     }
 
     return 0;
