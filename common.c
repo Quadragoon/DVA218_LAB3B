@@ -4,6 +4,17 @@
 
 #include "common.h"
 
+//-------------------------- A bit of color plz
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+#define BLU   "\x1B[34m"
+#define MAG   "\x1B[35m"
+#define CYN   "\x1B[36m"
+#define WHT   "\x1B[37m"
+#define RESET "\x1B[0m"
+//----------------------------------------------
+
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
@@ -98,7 +109,7 @@ int SetPacketFlag(packet* packet, uint flagToModify, int value) {
 }
 
 unsigned short CalculateChecksum(const packet* packet) {
-    DEBUGMESSAGE_NONEWLINE(4, "\n-------------------------------------------------------------[CalculateChecksum]\n");
+    DEBUGMESSAGE_NONEWLINE(4, MAG"\n-------------------------------------------------------------["RESET"CalculateChecksum"MAG"]\n"RESET);
     unsigned int total = 0;
     byte* packetBytes = (byte*) packet;
 
@@ -106,35 +117,35 @@ unsigned short CalculateChecksum(const packet* packet) {
 
     //-------------------------------------------------
     for (int i = 0; i < numBytesInPacket; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, "[%d]", packetBytes[i]);
+	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
     }
     printf("\n");
 
     for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket - 1; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, "[%c]", packetBytes[i]);
+	DEBUGMESSAGE_NONEWLINE(4, GRN"["RESET"%c"GRN"]"RESET, packetBytes[i]);
     }
     printf("\n");
     //-------------------------------------------------
 
-    DEBUGMESSAGE_NONEWLINE(4, "numBytesInPacket:[ %d ]            [   PACKET_HEADER_LENGTH:[ %d ] + packet->dataLength:[ %d ]    ]\n", numBytesInPacket, PACKET_HEADER_LENGTH, packet->dataLength);
+    DEBUGMESSAGE_NONEWLINE(4, GRN"numBytesInPacket:["RESET" %d "GRN"]            [   PACKET_HEADER_LENGTH:["RESET" %d "GRN"] + packet->dataLength:["RESET" %d "GRN"]    ]\n"RESET, numBytesInPacket, PACKET_HEADER_LENGTH, packet->dataLength);
 
     for (int i = 0; i < numBytesInPacket; i += 2) {
 	if (i == numBytesInPacket - 1) {
 	    total += packetBytes[i] * 256;
-	    DEBUGMESSAGE_NONEWLINE(4, "[i == numBytesInPacket-1]:[%d]     total:[ %d ]\n", i, total);
+	    DEBUGMESSAGE_NONEWLINE(4, MAG"[i == numBytesInPacket-1]:["RESET"%d"MAG"]     total:["RESET" %d "MAG"]\n"RESET, i, total);
 	}
 	else {
 	    unsigned short shortToAdd = 0;
 	    shortToAdd = ((packetBytes[i] * 256) + packetBytes[i + 1]);
 	    total += shortToAdd;
-	    DEBUGMESSAGE_NONEWLINE(4,"i:[%d]     total:[ %d ]\n", i, total);
+	    DEBUGMESSAGE_NONEWLINE(4,CYN"i:["RESET"%d"CYN"]     total:["RESET" %d "CYN"]\n"RESET, i, total);
 	}
     }
 
     while (total > 65535)
 	total -= 65535;
     
-    DEBUGMESSAGE_NONEWLINE(4,"---------------------------------------------------Returning total:[ %d ] \n\n", total);
+    DEBUGMESSAGE_NONEWLINE(4,MAG"---------------------------------------------------Returning total:["RESET" %d "MAG"] \n\n"RESET, total);
     return total;
 }
 
