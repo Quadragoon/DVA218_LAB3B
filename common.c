@@ -203,11 +203,14 @@ int PrintPacketData(const packet* packet) {
     for (int i = 0; i < numBytesInPacket; i++) {
 	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
     }
-    printf("\n");
+    
+    DEBUGMESSAGE_NONEWLINE(4,"\n");
+    
     DEBUGMESSAGE_NONEWLINE(4, GRN"Data: "RESET);
     for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket; i++) {
 	DEBUGMESSAGE_NONEWLINE(4, GRN"["RESET"%d"GRN"]"RESET, packetBytes[i]);
     }
-    printf("\n");
+    
+    DEBUGMESSAGE_NONEWLINE(4,"\n");
     return 1;
 }
