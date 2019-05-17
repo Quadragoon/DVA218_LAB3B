@@ -19,8 +19,8 @@
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
 #define PACKET_BUFFER_SIZE 2048
-#define PACKET_LOSS 10
-#define PACKET_CORRUPT 10
+#define PACKET_LOSS 1
+#define PACKET_CORRUPT 1
 
 int InitializeSocket() {
     int socket_fd = 0;
@@ -59,6 +59,7 @@ SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiv
 
     int packetLength = PACKET_HEADER_LENGTH + packetToSend->dataLength;
 
+    // Run the packet through the Error Generator before sending it (or losing it)
     if (ErrorGenerator(packetToSend) != 0) {
 	int retval = sendto(socket_fd, packetToSend, packetLength, MSG_CONFIRM, (struct sockaddr*) receiverAddress,
 		addressLength);
@@ -122,17 +123,7 @@ unsigned short CalculateChecksum(const packet* packet) {
 
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
 
-    //-------------------------------------------------
-    for (int i = 0; i < numBytesInPacket; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
-    }
-    printf("\n");
-
-    for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket - 1; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, GRN"["RESET"%c"GRN"]"RESET, packetBytes[i]);
-    }
-    printf("\n");
-    //-------------------------------------------------
+    PrintPacketData(packetBytes);
 
     DEBUGMESSAGE_NONEWLINE(4, GRN"numBytesInPacket:["RESET" %d "GRN"]            [   PACKET_HEADER_LENGTH:["RESET" %d "GRN"] + packet->dataLength:["RESET" %d "GRN"]    ]\n"RESET, numBytesInPacket, PACKET_HEADER_LENGTH, packet->dataLength);
 
@@ -178,45 +169,45 @@ int ErrorGenerator(packet* packet) {
 
     DEBUGMESSAGE_NONEWLINE(4, RED"\n-----------------------------------------------------["RESET"Welcome to the ErrorGenerator V0.1"RED"]\n"RESET);
     //-------------------------------------------------
-    DEBUGMESSAGE_NONEWLINE(4, YEL"Unaltered Packet: "RESET);
-    for (int i = 0; i < numBytesInPacket; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
-    }
-    printf("\n");
-    DEBUGMESSAGE_NONEWLINE(4, YEL"Data: "RESET);
-    for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket - 1; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%c"YEL"]"RESET, packetBytes[i]);
-    }
-    printf("\n");
+    DEBUGMESSAGE(4, YEL"[ Unaltered Packet ]"RESET);
+    PrintPacketData(packetBytes);
     //-------------------------------------------------
 
     // Randomize the chance for a packet to be lost
     if ((rand() % 100) < PACKET_LOSS) {
 	DEBUGMESSAGE_NONEWLINE(1, RED"[! Packet LoSt !]\n"RESET);
+	DEBUGMESSAGE_NONEWLINE(4, RED"----------------------------------------------------------------------------------------- \n\n"RESET);
 	return 0;
     } else {
+	// Randomize the chance for a packet to be corrupted
 	if ((rand() % 100) < PACKET_CORRUPT) {
 	    DEBUGMESSAGE_NONEWLINE(1, RED"[! Packet CorRUptEd !]\n"RESET);
 	    int BytesToCorrupt = 1 + (rand() % (numBytesInPacket - 1));
 	    for (int i = 0; i < BytesToCorrupt; i++) {
 		packetBytes[rand() % (numBytesInPacket - 1)] = (rand() % 255);
 	    }
-	    //-----------------------------------------------------------------------
-	    DEBUGMESSAGE_NONEWLINE(4, YEL"Altered Packet: "RESET);
-	    for (int i = 0; i < numBytesInPacket; i++) {
-		DEBUGMESSAGE_NONEWLINE(4, RED"["RESET"%d"RED"]"RESET, packetBytes[i]);
-	    }
-	    printf("\n");
-	    DEBUGMESSAGE_NONEWLINE(4, YEL"Data: "RESET);
-	    for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket - 1; i++) {
-		DEBUGMESSAGE_NONEWLINE(4, RED"["RESET"%c"RED"]"RESET, packetBytes[i]);
-	    }
-	    printf("\n");
-	    //-----------------------------------------------------------------------
+	    DEBUGMESSAGE(4, RED"[ Altered Packet ]"RESET);
+	    PrintPacketData(packetBytes);
 	}
+	DEBUGMESSAGE_NONEWLINE(4, RED"----------------------------------------------------------------------------------------- \n\n"RESET);
+	return 1;
     }
+}
 
+int PrintPacketData(const packet* packet) {
+    // Outputs debug messages that print out the entire packet
+    byte* packetBytes = (byte*) packet;
+    unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
 
-    DEBUGMESSAGE_NONEWLINE(4, RED"----------------------------------------------------------------------------------------- \n\n");
-
+    DEBUGMESSAGE_NONEWLINE(4, YEL"Packet: "RESET);
+    for (int i = 0; i < numBytesInPacket; i++) {
+	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
+    }
+    printf("\n");
+    DEBUGMESSAGE_NONEWLINE(4, GRN"Data: "RESET);
+    for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket; i++) {
+	DEBUGMESSAGE_NONEWLINE(4, GRN"["RESET"%d"GRN"]"RESET, packetBytes[i]);
+    }
+    printf("\n");
+    return 1;
 }
