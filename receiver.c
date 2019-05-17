@@ -107,8 +107,13 @@ void ReadIncomingMessages()
     }
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    if (argc == 2)
+    {
+        debugLevel = atoi(argv[1]);
+    }
+
     socket_fd = InitializeSocket();
 
     const int sockoptval = 1;

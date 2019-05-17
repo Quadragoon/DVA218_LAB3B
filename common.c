@@ -22,6 +22,8 @@
 #define PACKET_LOSS 1
 #define PACKET_CORRUPT 1
 
+int debugLevel = 0;
+
 int InitializeSocket() {
     int socket_fd = 0;
     if ((socket_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {

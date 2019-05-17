@@ -127,8 +127,13 @@ int NegotiateConnection(const char* receiverIP, const byte* desiredWindowSize)
     return 0;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    if (argc == 2)
+    {
+        debugLevel = atoi(argv[1]);
+    }
+
     socket_fd = InitializeSocket();
 
     DEBUGMESSAGE(1, "Socket setup successfully.");
