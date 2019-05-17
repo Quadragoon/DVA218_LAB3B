@@ -29,6 +29,9 @@ unsigned short sequence = 0;
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
 
+#define MIN_ACCEPTED_WINDOW_SIZE 1
+#define MAX_ACCEPTED_WINDOW_SIZE 16
+
 int NegotiateConnection(const char* receiverIP, const byte* desiredWindowSize)
 {
     memset(&receiverAddress, 0, sizeof(struct sockaddr_in));
@@ -40,7 +43,7 @@ int NegotiateConnection(const char* receiverIP, const byte* desiredWindowSize)
     int retval = inet_pton(receiverAddress.sin_family, receiverIP, &(receiverAddress.sin_addr));
     if (retval == -1)
     {
-        CRASHWITHERROR("NegotiateConnection() failed to get IP address");
+        CRASHWITHERROR("NegotiateConnection() failed to parse IP address");
     }
     else if (retval == 0)
     {
@@ -51,14 +54,8 @@ int NegotiateConnection(const char* receiverIP, const byte* desiredWindowSize)
     unsigned int senderAddressLength = sizeof(senderAddress);
 
     packet packetToSend, packetBuffer;
-    packetToSend.sequenceNumber = sequence;
-    if (SetPacketFlag(&packetToSend, PACKETFLAG_SYN, 1) < 0)
-    {
-        CRASHWITHMESSAGE("Setting SYN flag failed");
-    }
 
-    strcpy(packetToSend.data, desiredWindowSize);
-    packetToSend.dataLength = sizeof(*desiredWindowSize);
+    WritePacket(&packetToSend, PACKETFLAG_SYN, (void*)desiredWindowSize, sizeof(*desiredWindowSize), sequence);
 
     SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
     ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
@@ -69,25 +66,64 @@ int NegotiateConnection(const char* receiverIP, const byte* desiredWindowSize)
         if (packetBuffer.sequenceNumber == (sequence))
         {
             DEBUGMESSAGE(3, "SYN+ACK: Sequence number "GRN"OK"RESET);
-            if (packetBuffer.data[0] == desiredWindowSize)
+            byte suggestedWindowSize = packetBuffer.data[0];
+            if (suggestedWindowSize == *desiredWindowSize)
             {
                 DEBUGMESSAGE(2, "SYN+ACK: Data "GRN"OK."RESET);
+                return *desiredWindowSize;
             }
-            else
+            else if (suggestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && suggestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
+            {
+                return NegotiateConnection(receiverIP, &suggestedWindowSize);
+            }
+            else if (suggestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE || suggestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
             {
                 DEBUGMESSAGE(2, "SYN+ACK: Data "RED"NOT OK."RESET);
+                DEBUGMESSAGE(1, "SYN+ACK: Suggested window size out of bounds. Connection impossible.");
+                return -1;
             }
         }
         else
         {
             DEBUGMESSAGE(2, "SYN+ACK: Sequence number "RED"NOT OK"RESET);
+            return -1;
+        }
+    }
+    else if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_NAK)
+    {
+        DEBUGMESSAGE(3, "SYN+ACK: Flags "BLU"NEGOTIABLE"RESET);
+        if (packetBuffer.sequenceNumber == (sequence))
+        {
+            DEBUGMESSAGE(3, "SYN+ACK: Sequence number "GRN"OK"RESET);
+            byte suggestedWindowSize = packetBuffer.data[0];
+            if (suggestedWindowSize == *desiredWindowSize)
+            {
+                DEBUGMESSAGE(1, "SYN+ACK: Data "RED"VERY NOT OK."RESET);
+                DEBUGMESSAGE(1, "SYN+ACK: Received NAK suggestion for desired window size.\n"YEL"Something is wrong."RESET)
+                return -1;
+            }
+            else if (suggestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && suggestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
+            {
+                return NegotiateConnection(receiverIP, &suggestedWindowSize);
+            }
+            else if (suggestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE || suggestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
+            {
+                DEBUGMESSAGE(2, "SYN+ACK: Data "RED"NOT OK."RESET);
+                DEBUGMESSAGE(1, "SYN+ACK: Suggested window size out of bounds. Connection impossible.");
+                return -1;
+            }
+        }
+        else
+        {
+            DEBUGMESSAGE(2, "SYN+ACK: Sequence number "RED"NOT OK"RESET);
+            return -1;
         }
     }
     else
     {
         DEBUGMESSAGE(2, "SYN+ACK: Flags "RED"NOT OK"RESET);
+        return -1;
     }
-
     return 0;
 }
 
@@ -97,7 +133,7 @@ int main()
 
     DEBUGMESSAGE(1, "Socket setup successfully.");
 
-    byte desiredWindowSize = 1;
+    byte desiredWindowSize = 16;
     NegotiateConnection("127.0.0.1", &desiredWindowSize);
 
     return 0;

@@ -26,6 +26,87 @@
 
 int socket_fd;
 
+int CopyPacket(const packet* src, packet* dest)
+{
+    dest->flags = src->flags;
+    dest->sequenceNumber = src->sequenceNumber;
+    dest->dataLength = src->dataLength;
+    dest->checksum = src->checksum;
+    for (int i = 0; i < src->dataLength; i++)
+        dest->data[i] = src->data[i];
+    return 1; // should return something else on fail but, uh, checking for fail in a simple function like this seems weird to do
+}
+
+int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in senderAddress, unsigned int senderAddressLength)
+{
+    packet packetBuffer, packetToSend;
+    memset(&packetToSend, 0, sizeof(packet));
+    memset(&packetBuffer, 0, sizeof(packet));
+
+    CopyPacket(connectionRequestPacket, &packetBuffer);
+
+    if (packetBuffer.flags & PACKETFLAG_SYN)
+    {
+        DEBUGMESSAGE(3, "SYN: Flags "GRN"OK"RESET);
+        byte requestedWindowSize = packetBuffer.data[0];
+        if (requestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && requestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
+        {
+            DEBUGMESSAGE(3, "SYN: Data "GRN"OK"RESET);
+            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK,
+                        &requestedWindowSize, sizeof(requestedWindowSize), packetBuffer.sequenceNumber);
+            SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+        }
+        else if (requestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE)
+        {
+            DEBUGMESSAGE(3, "SYN: Data "BLU"NEGOTIABLE"RESET);
+            byte suggestedWindowSize = MIN_ACCEPTED_WINDOW_SIZE;
+            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_NAK,
+                        &suggestedWindowSize, sizeof(suggestedWindowSize), packetBuffer.sequenceNumber);
+            SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+        }
+        else if (requestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
+        {
+            DEBUGMESSAGE(3, "SYN: Data "BLU"NEGOTIABLE"RESET);
+            byte suggestedWindowSize = MAX_ACCEPTED_WINDOW_SIZE;
+            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_NAK,
+                        &suggestedWindowSize, sizeof(suggestedWindowSize), packetBuffer.sequenceNumber);
+            SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+        }
+        else
+        {
+            DEBUGMESSAGE(2, "SYN: Data "RED"NOT OK"RESET);
+        }
+    }
+    else
+    {
+        DEBUGMESSAGE(2, "SYN: Flags "RED"NOT OK"RESET);
+    }
+
+    return 0;
+}
+
+void ReadIncomingMessages()
+{
+    struct sockaddr_in receiverAddress, senderAddress;
+    memset(&senderAddress, 0, sizeof(struct sockaddr_in));
+    unsigned int senderAddressLength = sizeof(senderAddress);
+
+    packet packetBuffer;
+    memset(&packetBuffer, 0, sizeof(packet));
+
+    while (1)
+    {
+        ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+
+        if (packetBuffer.flags & PACKETFLAG_SYN)
+        {
+            ReceiveConnection(&packetBuffer, senderAddress, senderAddressLength);
+        }
+        if (packetBuffer.sequenceNumber == 246)
+            break; // compiler whines about endless loops without this bit
+    }
+}
+
 int main()
 {
     socket_fd = InitializeSocket();
@@ -47,46 +128,7 @@ int main()
 
     DEBUGMESSAGE(1, "Socket setup and bound successfully.");
 
-    unsigned short sequence = 0;
-
-    struct sockaddr_in receiverAddress, senderAddress;
-    memset(&receiverAddress, 0, sizeof(struct sockaddr_in));
-    memset(&senderAddress, 0, sizeof(struct sockaddr_in));
-    unsigned int receiverAddressLength = sizeof(receiverAddress);
-    unsigned int senderAddressLength = sizeof(senderAddress);
-
-    packet packetToSend, packetBuffer;
-    memset(&packetToSend, 0, sizeof(packet));
-    memset(&packetBuffer, 0, sizeof(packet));
-
-    ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
-    if (packetBuffer.flags & PACKETFLAG_SYN)
-    {
-        DEBUGMESSAGE(3, "SYN: Flags "GRN"OK"RESET);
-        byte requestedWindowSize = packetBuffer.data[0];
-        if (requestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && requestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
-        {
-            DEBUGMESSAGE(3, "SYN: Data "GRN"OK"RESET);
-            WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK, &requestedWindowSize, sizeof(byte), packetBuffer.sequenceNumber);
-            SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
-        }
-        /*else if (requestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE)
-        {
-            // TODO: window size negotiation, other than just acceptance
-        }
-        else if (requestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
-        {
-            // TODO: window size negotiation, other than just acceptance
-        }*/
-        else
-        {
-            DEBUGMESSAGE(2, "SYN: Data "RED"NOT OK"RESET);
-        }
-    }
-    else
-    {
-        DEBUGMESSAGE(2, "SYN: Flags "RED"NOT OK"RESET);
-    }
+    ReadIncomingMessages();
 
     return 0;
 }
