@@ -156,12 +156,12 @@ void PrintMenu() {
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void PreviewM() {
+void ReadMessage(char readstring[MAX_MESSAGE_LENGTH]) {
     system("clear"); // Clean up the console
     printf(YEL"---[ Message Preview ]--- \n"RESET);
 
     //---------------------------
-    char readstring[MAX_MESSAGE_LENGTH] = "\0";
+
     FILE *fp;
     size_t len = 0;
     int symbol;
@@ -169,15 +169,14 @@ void PreviewM() {
 
     fp = fopen("message", "r");
     if (fp != NULL) {
-	while(tracker < MAX_MESSAGE_LENGTH) { 
+	while (tracker < MAX_MESSAGE_LENGTH) {
 	    symbol = fgetc(fp);
-	    if(symbol < 0){ // Check for the end of the file
+	    if (symbol < 0) { // Check for the end of the file
 		break;
 	    }
-	    readstring[tracker] = (char*)symbol;
+	    readstring[tracker] = (char*) symbol;
 	    tracker++;
 	}
-	printf("%s\n", readstring);
 	fclose(fp);
     } else {
 	printf(YEL"\n -Couldn't open file 'message'- \n"RESET);
@@ -200,6 +199,7 @@ int main(int argc, char* argv[]) {
     }
     int command = 0;
     char c;
+    char readstring[MAX_MESSAGE_LENGTH] = "\0";
 
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
@@ -216,7 +216,8 @@ int main(int argc, char* argv[]) {
 	usleep(100);
 
 	system("clear"); // Clean up the console
-	PreviewM();
+	ReadMessage(readstring);
+	printf("%s\n", readstring);
 	PrintMenu();
 
 	scanf(" %d", &command); // Get a command from the user
@@ -227,7 +228,7 @@ int main(int argc, char* argv[]) {
 		SendM();
 		break;
 	    case 2:
-		PreviewM();
+		// Just sending the user back to the start of the while loop
 		break;
 	    case 2049:
 		// TODO: Let the receiver properly know that we are closing down the shop 
