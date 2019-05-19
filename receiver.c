@@ -87,12 +87,23 @@ void ReadIncomingMessages() {
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
 	//--------------------------------------------------------------------------JANNE LEKER HÄR-------------------------------------------- 
 	if (packetBuffer.flags == 7) { // Vad använder vi för flagga till datapaket?
-	    printf("Incoming data: [ %s ]\n", packetBuffer.data);
+	    char Filler[10] = "I hear ya";
+	    printf("%s", packetBuffer.data);
 
 	    packet packetToSend;
 	    memset(&packetToSend, 0, sizeof (packet));
 	    
-	    WritePacket(&packetToSend, PACKETFLAG_ACK, (void*)packetBuffer.data, WindowSize, packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
+	    WritePacket(&packetToSend, PACKETFLAG_ACK, (void*)Filler, WindowSize, packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
+	    SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+	}
+	else if (packetBuffer.flags == 8 ){ // Oh lordy, kill it with fire
+	    char Filler[10] = "thank u";
+	    printf("%s\n", packetBuffer.data);
+
+	    packet packetToSend;
+	    memset(&packetToSend, 0, sizeof (packet));
+	    
+	    WritePacket(&packetToSend, PACKETFLAG_ACK, (void*)Filler, WindowSize, packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
 	    SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
 	}
 	//--------------------------------------------------------------------------JANNE LEKTE HÄR--------------------------------------------

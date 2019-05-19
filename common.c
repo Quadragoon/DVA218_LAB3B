@@ -119,7 +119,7 @@ int SetPacketFlag(packet* packet, uint flagToModify, int value) {
 }
 
 unsigned short CalculateChecksum(const packet* packet) {
-    DEBUGMESSAGE_NONEWLINE(4, MAG"\n-------------------------------------------------------------["RESET"CalculateChecksum"MAG"]\n"RESET);
+    DEBUGMESSAGE_NONEWLINE(5, MAG"\n-------------------------------------------------------------["RESET"CalculateChecksum"MAG"]\n"RESET);
     unsigned int total = 0;
     byte* packetBytes = (byte*) packet;
 
@@ -127,24 +127,24 @@ unsigned short CalculateChecksum(const packet* packet) {
 
     PrintPacketData(packetBytes);
 
-    DEBUGMESSAGE_NONEWLINE(4, GRN"numBytesInPacket:["RESET" %d "GRN"]            [   PACKET_HEADER_LENGTH:["RESET" %d "GRN"] + packet->dataLength:["RESET" %d "GRN"]    ]\n"RESET, numBytesInPacket, PACKET_HEADER_LENGTH, packet->dataLength);
+    DEBUGMESSAGE_NONEWLINE(5, GRN"numBytesInPacket:["RESET" %d "GRN"]            [   PACKET_HEADER_LENGTH:["RESET" %d "GRN"] + packet->dataLength:["RESET" %d "GRN"]    ]\n"RESET, numBytesInPacket, PACKET_HEADER_LENGTH, packet->dataLength);
 
     for (int i = 0; i < numBytesInPacket; i += 2) {
 	if (i == numBytesInPacket - 1) {
 	    total += packetBytes[i] * 256;
-	    DEBUGMESSAGE_NONEWLINE(4, MAG"[i == numBytesInPacket-1]:["RESET"%d"MAG"]     total:["RESET" %d "MAG"]\n"RESET, i, total);
+	    DEBUGMESSAGE_NONEWLINE(5, MAG"[i == numBytesInPacket-1]:["RESET"%d"MAG"]     total:["RESET" %d "MAG"]\n"RESET, i, total);
 	} else {
 	    unsigned short shortToAdd = 0;
 	    shortToAdd = ((packetBytes[i] * 256) + packetBytes[i + 1]);
 	    total += shortToAdd;
-	    DEBUGMESSAGE_NONEWLINE(4, CYN"i:["RESET"%d"CYN"]     total:["RESET" %d "CYN"]\n"RESET, i, total);
+	    DEBUGMESSAGE_NONEWLINE(5, CYN"i:["RESET"%d"CYN"]     total:["RESET" %d "CYN"]\n"RESET, i, total);
 	}
     }
 
     while (total > 65535)
 	total -= 65535;
 
-    DEBUGMESSAGE_NONEWLINE(4, MAG"---------------------------------------------------Returning total:["RESET" %d "MAG"] \n\n"RESET, total);
+    DEBUGMESSAGE_NONEWLINE(5, MAG"---------------------------------------------------Returning total:["RESET" %d "MAG"] \n\n"RESET, total);
     return total;
 }
 
@@ -169,16 +169,16 @@ int ErrorGenerator(packet* packet) {
     byte* packetBytes = (byte*) packet;
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
 
-    DEBUGMESSAGE_NONEWLINE(4, RED"\n-----------------------------------------------------["RESET"Welcome to the ErrorGenerator V0.1"RED"]\n"RESET);
+    DEBUGMESSAGE_NONEWLINE(5, RED"\n-----------------------------------------------------["RESET"Welcome to the ErrorGenerator V0.1"RED"]\n"RESET);
     //-------------------------------------------------
-    DEBUGMESSAGE(4, YEL"[ Unaltered Packet ]"RESET);
+    DEBUGMESSAGE(5, YEL"[ Unaltered Packet ]"RESET);
     PrintPacketData(packetBytes);
     //-------------------------------------------------
 
     // Randomize the chance for a packet to be lost
     if ((rand() % 100) < PACKET_LOSS) {
 	DEBUGMESSAGE_NONEWLINE(1, RED"[! Packet LoSt !]\n"RESET);
-	DEBUGMESSAGE_NONEWLINE(4, RED"----------------------------------------------------------------------------------------- \n\n"RESET);
+	DEBUGMESSAGE_NONEWLINE(5, RED"----------------------------------------------------------------------------------------- \n\n"RESET);
 	return 0;
     } else {
 	// Randomize the chance for a packet to be corrupted
@@ -188,10 +188,10 @@ int ErrorGenerator(packet* packet) {
 	    for (int i = 0; i < BytesToCorrupt; i++) {
 		packetBytes[rand() % (numBytesInPacket - 1)] = (rand() % 255);
 	    }
-	    DEBUGMESSAGE(4, RED"[ Altered Packet ]"RESET);
+	    DEBUGMESSAGE(5, RED"[ Altered Packet ]"RESET);
 	    PrintPacketData(packetBytes);
 	}
-	DEBUGMESSAGE_NONEWLINE(4, RED"----------------------------------------------------------------------------------------- \n\n"RESET);
+	DEBUGMESSAGE_NONEWLINE(5, RED"----------------------------------------------------------------------------------------- \n\n"RESET);
 	return 1;
     }
 }
@@ -203,14 +203,14 @@ int PrintPacketData(const packet* packet) {
 
     DEBUGMESSAGE_NONEWLINE(4, YEL"Packet: "RESET);
     for (int i = 0; i < numBytesInPacket; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
+	DEBUGMESSAGE_NONEWLINE(5, YEL"["RESET"%d"YEL"]"RESET, packetBytes[i]);
     }
     
     DEBUGMESSAGE_NONEWLINE(4,"\n");
     
     DEBUGMESSAGE_NONEWLINE(4, GRN"Data: "RESET);
     for (int i = PACKET_HEADER_LENGTH; i < numBytesInPacket; i++) {
-	DEBUGMESSAGE_NONEWLINE(4, GRN"["RESET"%d"GRN"]"RESET, packetBytes[i]);
+	DEBUGMESSAGE_NONEWLINE(4, GRN"["RESET"%c"GRN"]"RESET, packetBytes[i]);
     }
     
     DEBUGMESSAGE_NONEWLINE(4,"\n");
