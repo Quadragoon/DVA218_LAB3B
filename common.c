@@ -19,8 +19,8 @@
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
 #define PACKET_BUFFER_SIZE 2048
-#define PACKET_LOSS 1
-#define PACKET_CORRUPT 1
+#define PACKET_LOSS 0
+#define PACKET_CORRUPT 0
 
 int debugLevel = 0;
 

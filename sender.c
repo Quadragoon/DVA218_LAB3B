@@ -22,6 +22,7 @@
 #include <zconf.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <math.h>
 
 #include "common.h"
 
@@ -47,6 +48,7 @@ struct sockaddr_in senderAddress;
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
 #define MAX_MESSAGE_LENGTH 1500
+#define FRAME_SIZE 10  // Why is the data length set to the negoiated window size right now, window size is supposed to be the number of frames no?
 
 
 //---------------------------------------------------------------------------------------------------------------
@@ -179,17 +181,74 @@ void ReadMessage(char readstring[MAX_MESSAGE_LENGTH]) {
 	}
 	fclose(fp);
     } else {
-	printf(YEL"\n -Couldn't open file 'message'- \n"RESET);
+	DEBUGMESSAGE(1,YEL"\n -Couldn't open file 'message'- "RESET);
 
     }
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void SendM() {
+void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
     system("clear"); // Clean up the console
-    // TODO: Send Message to receiver
-    printf(YEL"SendMessage\n"RESET);
-    sleep(1);
+    DEBUGMESSAGE(2,YEL"---[ Sending Message ]--- "RESET);
+    float messagedivided = 0;
+    int packets = 0;
+    int seq = 0; // Keeps track of what frame the sliding window is currently managing
+    int ACKsMissing = 0; // Keeps track of how many ACKs are still unaccounted for
+    int ACKtable[MAX_ACCEPTED_WINDOW_SIZE]; // Keeps track of exactly which ACKs are missing
+    memset(ACKtable, '1', MAX_ACCEPTED_WINDOW_SIZE); 
+    int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
+
+
+    // Figure out how many packets we need to send
+    int MessageLength = strlen(readstring);
+    messagedivided = (float) MessageLength / (float) FRAME_SIZE;
+    packets = ceil(messagedivided);
+    DEBUGMESSAGE(4,GRN"Message is [ "RESET"%d"GRN" ] symbols long"RESET, MessageLength);
+    DEBUGMESSAGE(4,GRN"Will split over [%.2f] rounded to [ "RESET"%d"GRN" ] packets"GRN, messagedivided, packets);
+    DEBUGMESSAGE(4,YEL"WindowSize is [ "RESET"%d"YEL" ] frames"RESET, WindowSize);
+
+
+    // TODO: Implement 'Send Message' to receiver, properly ----------- // Vilken flagga används för data?
+
+    unsigned int receiverAddressLength = sizeof (receiverAddress);
+    unsigned int senderAddressLength = sizeof (senderAddress);
+    packet packetToSend[WindowSize];
+    packet packetBuffer;
+    // 
+
+    for (int i = 0; i < packets; i++) {
+	if (ACKsMissing < WindowSize + 1) {
+	    
+	    DEBUGMESSAGE_NONEWLINE(4,YEL"Sending:"RESET);
+	    for(int u = MessageTracker; u < (FRAME_SIZE+MessageTracker); u++){ // Fill up the packet with data
+		packetToSend[seq].data[u] = readstring[u];
+		printf("%c", packetToSend[seq].data[u]); // Works this far..
+	    }
+	    DEBUGMESSAGE(4,GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET,MessageTracker);
+	    
+	    WritePacket(&(packetToSend[seq]), 7, (void*)(packetToSend[seq].data), WindowSize, seq); // Vilken flagga används för data?
+	    
+	    SendPacket(socket_fd, &(packetToSend[seq]), &receiverAddress, receiverAddressLength);
+	    
+	    ACKtable[seq] = 0;
+	    ACKsMissing++;
+	    seq++;
+	    MessageTracker += FRAME_SIZE;
+	}
+	
+	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+	if(packetBuffer.flags == PACKETFLAG_ACK){
+	    ACKtable[  packetBuffer.sequenceNumber  ] = 1;
+	    ACKsMissing--;
+	}
+	
+    }
+
+
+    //------------------------------
+
+    printf("\n");
+    sleep(5);
 }
 //---------------------------------------------------------------------------------------------------------------
 
@@ -205,7 +264,7 @@ int main(int argc, char* argv[]) {
     DEBUGMESSAGE(1, "Socket setup successfully.");
 
     int *socketpointer = &socket_fd;
-    NegotiateConnection("127.0.0.1", &desiredWindowSize);
+    int WindowSize = NegotiateConnection("127.0.0.1", &desiredWindowSize);
 
     // Create the thread checking for FINs from the receiver------
     pthread_t thread; //Thread ID
@@ -225,7 +284,7 @@ int main(int argc, char* argv[]) {
 
 	switch (command) {
 	    case 1:
-		SendM();
+		SlidingWindow(readstring, WindowSize);
 		break;
 	    case 2:
 		// Just sending the user back to the start of the while loop
