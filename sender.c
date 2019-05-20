@@ -29,7 +29,7 @@
 int socket_fd;
 unsigned short sequence = 0;
 int KillThreads = 0;
-byte windowSize = 16;
+byte windowSize = 4;
 unsigned short frameSize = 1000;
 
 struct sockaddr_in receiverAddress;
@@ -166,18 +166,16 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 void* ReadPackets(ACKmngr *ACKsPointer) {
     DEBUGMESSAGE(2, "FINFINDER thread running\n");
 
-    ACKmngr ACKs;
-    ACKs = *ACKsPointer;
     packet packetBuffer;
     unsigned int senderAddressLength = sizeof (senderAddress);    
     
     while (KillThreads == 0) {
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
 	if (packetBuffer.flags == PACKETFLAG_ACK) {
-	    ACKs.Table[ packetBuffer.sequenceNumber ] = 1;
-	    ACKs.Missing--;
+	    ACKsPointer->Table[ packetBuffer.sequenceNumber ] = 1;
+	    (ACKsPointer->Missing)--;
+	    printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
 	}
-	sleep(2);
 	// TODO: Look for FINs here
     }
 
@@ -237,8 +235,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     float messagedivided = 0;
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
-    ACKmngr ACKs;
-    ACKs = *ACKsPointer;
 
     int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
@@ -255,6 +251,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     unsigned int receiverAddressLength = sizeof (receiverAddress);
     packet* packetsToSend;
     packetsToSend = malloc(sizeof(packet) * (windowSize + 1));
+    
     if (packetsToSend == NULL)
     {
 	CRASHWITHERROR("malloc() in SlidingWindow() failed");
@@ -262,7 +259,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     
 
     for (int i = 0; i < packets; i++) {
-	if (ACKs.Missing < windowSize) {
+	if (seq < windowSize) {
 
 	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
 	    int trackPackData = 0;
@@ -284,13 +281,19 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 
 	    SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
 
-	    ACKs.Table[seq] = 0;
-	    ACKs.Missing++;
+	    ACKsPointer->Table[seq] = 0;
+	    (ACKsPointer->Missing)++;
 	    seq++;
 	    MessageTracker += frameSize;
+	    printf("Message: [ %d ] Sent     ACKs.Missing:[ %d ]\n", packetsToSend[seq].sequenceNumber, ACKsPointer->Missing);
+	}else{
+	    i--;
+	    if(ACKsPointer->Missing == 0){
+		seq = 0;
+	    }
 	}
 	
-	//usleep(5000);
+	//usleep(300000);
     }
     //------------------------------
     printf("\n");
@@ -315,24 +318,32 @@ int main(int argc, char* argv[])
     DEBUGMESSAGE(5, "Intializing socket...");
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
+    NegotiateConnection("127.0.0.1", windowSize, frameSize);
+	usleep(5000);
+    
+	// Create the thread checking for messages from the receiver------
+	pthread_t thread; //Thread ID
+	pthread_create(&thread, NULL, (void*)ReadPackets, ACKsPointer);
+	//----------------------------------------------------------------
+	
 
 
     //------------------------------------------------------------
 
     while (KillThreads == 0)
     {
-	usleep(100);
-
+	usleep(1000);
 	system("clear"); // Clean up the console
 	
 	printf("%s\n", readstring);
 	PrintMenu();
-
+	
         char* commandBuffer;
         if ((commandBuffer = malloc(128)) == NULL)
         {
             CRASHWITHERROR("commandBuffer malloc failed");
         }
+	
         scanf("%s", commandBuffer);
         command = strtol(commandBuffer, NULL, 10); // Get a command from the user
         while ((c = getchar()) != '\n' && c != EOF); //Rensar läsbufferten
@@ -340,12 +351,8 @@ int main(int argc, char* argv[])
         switch (command)
         {
             case 1:
-		NegotiateConnection("127.0.0.1", windowSize, frameSize);
-		// Create the thread checking for FINs from the receiver------
-		pthread_t thread; //Thread ID
-		pthread_create(&thread, NULL, (void*)ReadPackets, ACKsPointer);
-		// Send the Message
-                SlidingWindow(readstring, ACKsPointer);
+		LoadMessageFromFile(readstring);
+                SlidingWindow(readstring, ACKsPointer); // Send the Message
                 break;
             case 2:
 		LoadMessageFromFile(readstring);
