@@ -23,7 +23,7 @@
 //----------------------------------------------
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
-#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
+//#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
 extern int debugLevel;
 #define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");} (1==1)
@@ -60,8 +60,8 @@ struct ACKmngr
 typedef struct packet packet;
 typedef struct ACKmngr ACKmngr;
 int InitializeSocket();
-ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
-ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
+//ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
+//ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
 
 ssize_t SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
 ssize_t ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);

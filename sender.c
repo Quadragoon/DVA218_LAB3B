@@ -338,7 +338,13 @@ int main(int argc, char* argv[])
         printf("%s\n", readstring);
         PrintMenu();
 
-        scanf(" %d", &command); // Get a command from the user
+        char* commandBuffer;
+        if ((commandBuffer = malloc(128)) == NULL)
+        {
+            CRASHWITHERROR("commandBuffer malloc failed");
+        }
+        scanf("%s", commandBuffer);
+        command = strtol(commandBuffer, NULL, 10); // Get a command from the user
         while ((c = getchar()) != '\n' && c != EOF); //Rensar läsbufferten
 
         switch (command)
