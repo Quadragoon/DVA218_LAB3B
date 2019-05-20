@@ -136,7 +136,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                 {
                     DEBUGMESSAGE(1, "SYN+NAK: Data "RED"VERY NOT OK."RESET);
                     DEBUGMESSAGE(1, "SYN+NAK: Received NAK suggestion for desired parameters.\n"
-                    YEL"Something is wrong."RESET)
+                    YEL"Something is wrong."RESET);
                     return -1;
                 }
                 else if (suggestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE &&
@@ -144,9 +144,9 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                          suggestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE &&
                          suggestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE)
                 {
-                    DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...")
+                    DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
                     DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
-                            suggestedWindowSize, suggestedFrameSize)
+                            suggestedWindowSize, suggestedFrameSize);
                     return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
                 }
                 else
@@ -271,7 +271,7 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr 
 
 	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
 	    int ti = 0;
-	    for (int u = MessageTracker; u < (FRAME_SIZE + MessageTracker); u++) { // Fill up the packet with data
+	    for (int u = MessageTracker; u < (frameSize + MessageTracker); u++) { // Fill up the packet with data
 		packetToSend[seq].data[ti] = readstring[u];
 		printf("%c", packetToSend[seq].data[ti]);
 		ti++;
@@ -282,9 +282,9 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr 
 
 
 	    if (i == packets - 1) {
-		WritePacket(&(packetToSend[seq]), PACKETFLAG_FIN, (void*) (packetToSend[seq].data), FRAME_SIZE, seq);
+		WritePacket(&(packetToSend[seq]), PACKETFLAG_FIN, (void*) (packetToSend[seq].data), frameSize, seq);
 	    } else {
-		WritePacket(&(packetToSend[seq]), 0, (void*) (packetToSend[seq].data), FRAME_SIZE, seq); // Vilken flagga används för data?
+		WritePacket(&(packetToSend[seq]), 0, (void*) (packetToSend[seq].data), frameSize, seq); // Vilken flagga används för data?
 	    }
 
             SendPacket(socket_fd, &(packetToSend[seq]), &receiverAddress, receiverAddressLength);
@@ -292,7 +292,7 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr 
 	    ACKs.Table[seq] = 0;
 	    ACKs.Missing++;
 	    seq++;
-	    MessageTracker += FRAME_SIZE;
+	    MessageTracker += frameSize;
 	}
 
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
@@ -322,7 +322,7 @@ int main(int argc, char* argv[])
     memset(ACKs.Table, '1', ACK_TABLE_SIZE);
     ACKs.Missing = 0;
 
-    DEBUGMESSAGE(5, "Intializing socket...")
+    DEBUGMESSAGE(5, "Intializing socket...");
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
 
@@ -347,7 +347,7 @@ int main(int argc, char* argv[])
 
 	switch (command) {
 	    case 1:
-		SlidingWindow(readstring, WindowSize, ACKsPointer);
+		SlidingWindow(readstring, windowSize, ACKsPointer);
 		break;
 	    case 2:
 		// Just sending the user back to the start of the while loop

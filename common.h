@@ -15,8 +15,8 @@
 #define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
 extern int debugLevel;
-#define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");}
-#define DEBUGMESSAGE_NONEWLINE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__);}
+#define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");} (1==1)
+#define DEBUGMESSAGE_NONEWLINE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__);} (1==1)
 
 #define LISTENING_PORT 23456
 #define DATA_BUFFER_SIZE 65535
