@@ -36,6 +36,7 @@ int CopyPacket(const packet* src, packet* dest) {
 	dest->data[i] = src->data[i];
     return 1; // should return something else on fail but, uh, checking for fail in a simple function like this seems weird to do
 }
+//yayeet
 
 int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in senderAddress, unsigned int senderAddressLength) {
     packet packetBuffer, packetToSend;
@@ -86,7 +87,7 @@ void ReadIncomingMessages() {
     while (1) {
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
 	//--------------------------------------------------------------------------JANNE LEKER HÄR-------------------------------------------- 
-	if (packetBuffer.flags == 7) { // Vad använder vi för flagga till datapaket?
+	if (packetBuffer.flags == 0) { // Vad använder vi för flagga till datapaket?
 	    char Filler[10] = "I hear ya";
 	    printf("%s", packetBuffer.data);
 	    
@@ -96,7 +97,7 @@ void ReadIncomingMessages() {
 	    WritePacket(&packetToSend, PACKETFLAG_ACK, (void*)Filler, WindowSize, packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
 	    SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
 	}
-	else if (packetBuffer.flags == 8 ){ // Oh lordy, kill it with fire
+	else if (packetBuffer.flags == PACKETFLAG_FIN ){ // Oh lordy, kill it with fire
 	    char Filler[10] = "thank u";
 	    printf("%s\n", packetBuffer.data);
 

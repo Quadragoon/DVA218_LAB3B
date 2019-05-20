@@ -28,6 +28,8 @@ extern int debugLevel;
 #define PACKETFLAG_NAK 4u
 #define PACKETFLAG_FIN 8u
 
+#define ACK_TABLE_SIZE 2000
+
 struct packet
 {
     byte flags;
@@ -37,7 +39,14 @@ struct packet
     byte data[255];
 };
 
+struct ACKmngr
+{
+    int Missing; // Keeps track of how many ACKs are still unaccounted for
+    int Table[ACK_TABLE_SIZE];
+};
+
 typedef struct packet packet;
+typedef struct ACKmngr ACKmngr;
 int InitializeSocket();
 ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
 ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);

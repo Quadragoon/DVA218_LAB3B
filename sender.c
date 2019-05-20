@@ -47,8 +47,8 @@ struct sockaddr_in senderAddress;
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
-#define MAX_MESSAGE_LENGTH 10000
-#define FRAME_SIZE 15  // Why is the data length set to the negoiated window size right now, window size is supposed to be the number of frames no?
+#define MAX_MESSAGE_LENGTH 50000
+#define FRAME_SIZE 20  // Why is the data length set to the negoiated window size right now, window size is supposed to be the number of frames no?
 
 
 //---------------------------------------------------------------------------------------------------------------
@@ -134,11 +134,14 @@ int NegotiateConnection(const char* receiverIP, const byte* desiredWindowSize) {
 //---------------------------------------------------------------------------------------------------------------
 // The function that reads packets from the receiver, is run by a separate thread
 
-void * FINFINDER() {
+void * ReadPackets(ACKmngr *ACKsPointer) {
     DEBUGMESSAGE(2, "FINFINDER thread running\n");
-
+    
+    ACKmngr ACKs;
+    ACKs = *ACKsPointer;
+    
     while (KillThreads == 0) {
-	sleep(1);
+	sleep(2);
 	// TODO: Look for FINs here
     }
 
@@ -158,7 +161,7 @@ void PrintMenu() {
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void ReadMessage(char readstring[MAX_MESSAGE_LENGTH]) {
+void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
     system("clear"); // Clean up the console
     printf(YEL"---[ Message Preview ]--- \n"RESET);
 
@@ -187,18 +190,17 @@ void ReadMessage(char readstring[MAX_MESSAGE_LENGTH]) {
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
+void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr *ACKsPointer) {
     system("clear"); // Clean up the console
     DEBUGMESSAGE(2, YEL"---[ Sending Message ]--- "RESET);
     float messagedivided = 0;
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
-    int ACKsMissing = 0; // Keeps track of how many ACKs are still unaccounted for
-    int ACKtable[500]; // Keeps track of exactly which ACKs are missing
-    memset(ACKtable, '1', 500);
+    ACKmngr ACKs;
+    ACKs = *ACKsPointer;
+    
     int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
-
-
+    
     // Figure out how many packets we need to send
     int MessageLength = strlen(readstring);
     messagedivided = (float) MessageLength / (float) FRAME_SIZE;
@@ -217,7 +219,7 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
     // 
 
     for (int i = 0; i < packets; i++) {
-	if (ACKsMissing < 1) {
+	if (ACKs.Missing < 1) {
 
 	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
 	    int ti = 0;
@@ -230,25 +232,25 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
 	    DEBUGMESSAGE(5, GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET, MessageTracker);
 	    DEBUGMESSAGE(4, GRN"\n SequenceNumber:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetToSend[seq].sequenceNumber, seq);
 
-
+	    
 	    if (i == packets - 1) {
-		WritePacket(&(packetToSend[seq]), 8, (void*) (packetToSend[seq].data), WindowSize, seq);
+		WritePacket(&(packetToSend[seq]), PACKETFLAG_FIN, (void*) (packetToSend[seq].data), FRAME_SIZE, seq);
 	    } else {
-		WritePacket(&(packetToSend[seq]), 7, (void*) (packetToSend[seq].data), WindowSize, seq); // Vilken flagga används för data?
+		WritePacket(&(packetToSend[seq]), 0, (void*) (packetToSend[seq].data), FRAME_SIZE, seq); // Vilken flagga används för data?
 	    }
 
 	    SendPacket(socket_fd, &(packetToSend[seq]), &receiverAddress, receiverAddressLength);
 
-	    ACKtable[seq] = 0;
-	    ACKsMissing++;
+	    ACKs.Table[seq] = 0;
+	    ACKs.Missing++;
 	    seq++;
 	    MessageTracker += FRAME_SIZE;
 	}
 
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
 	if (packetBuffer.flags == PACKETFLAG_ACK) {
-	    ACKtable[ packetBuffer.sequenceNumber ] = 1;
-	    ACKsMissing--;
+	    ACKs.Table[ packetBuffer.sequenceNumber ] = 1;
+	    ACKs.Missing--;
 	}
 	//usleep(5000);
     }
@@ -265,6 +267,10 @@ int main(int argc, char* argv[]) {
     int command = 0;
     char c;
     char readstring[MAX_MESSAGE_LENGTH] = "\0";
+    ACKmngr ACKs;
+    ACKmngr *ACKsPointer = &ACKs;
+    memset(ACKs.Table, '1', ACK_TABLE_SIZE);   
+    ACKs.Missing = 0;
 
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
@@ -274,14 +280,14 @@ int main(int argc, char* argv[]) {
 
     // Create the thread checking for FINs from the receiver------
     pthread_t thread; //Thread ID
-    pthread_create(&thread, NULL, FINFINDER, NULL);
+    pthread_create(&thread, NULL, ReadPackets, ACKsPointer);
     //------------------------------------------------------------
 
     while (KillThreads == 0) {
 	usleep(100);
 
 	system("clear"); // Clean up the console
-	ReadMessage(readstring);
+	LoadMessageFromFile(readstring);
 	printf("%s\n", readstring);
 	PrintMenu();
 
@@ -290,7 +296,7 @@ int main(int argc, char* argv[]) {
 
 	switch (command) {
 	    case 1:
-		SlidingWindow(readstring, WindowSize);
+		SlidingWindow(readstring, WindowSize, ACKsPointer);
 		break;
 	    case 2:
 		// Just sending the user back to the start of the while loop
