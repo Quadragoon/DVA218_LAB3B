@@ -229,7 +229,7 @@ int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLengt
 int ErrorGenerator(packet* packet)
 {
     time_t t;
-    srand((unsigned) time(&t));
+    srandom((unsigned) time(&t));
 
     byte* packetBytes = (byte*) packet;
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
@@ -249,7 +249,7 @@ int ErrorGenerator(packet* packet)
     //-------------------------------------------------
 
     // Randomize the chance for a packet to be lost
-    if ((rand() % 100) < PACKET_LOSS)
+    if ((random() % 100) < PACKET_LOSS)
     {
         DEBUGMESSAGE_NONEWLINE(1, RED
                 "[! Packet LoSt !]\n"
@@ -262,15 +262,15 @@ int ErrorGenerator(packet* packet)
     else
     {
         // Randomize the chance for a packet to be corrupted
-        if ((rand() % 100) < PACKET_CORRUPT)
+        if ((random() % 100) < PACKET_CORRUPT)
         {
             DEBUGMESSAGE_NONEWLINE(1, RED
                     "[! Packet CorRUptEd !]\n"
                     RESET);
-            int BytesToCorrupt = 1 + (rand() % (numBytesInPacket - 1));
+            int BytesToCorrupt = 1 + (random() % (numBytesInPacket - 1));
             for (int i = 0; i < BytesToCorrupt; i++)
             {
-                packetBytes[rand() % (numBytesInPacket - 1)] = (rand() % 255);
+                packetBytes[random() % (numBytesInPacket - 1)] = (random() % 255);
             }
             DEBUGMESSAGE(5, RED
                     "[ Altered Packet ]"
