@@ -47,8 +47,8 @@ struct sockaddr_in senderAddress;
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
-#define MAX_MESSAGE_LENGTH 1500
-#define FRAME_SIZE 10  // Why is the data length set to the negoiated window size right now, window size is supposed to be the number of frames no?
+#define MAX_MESSAGE_LENGTH 10000
+#define FRAME_SIZE 15  // Why is the data length set to the negoiated window size right now, window size is supposed to be the number of frames no?
 
 
 //---------------------------------------------------------------------------------------------------------------
@@ -194,8 +194,8 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
     int ACKsMissing = 0; // Keeps track of how many ACKs are still unaccounted for
-    int ACKtable[MAX_ACCEPTED_WINDOW_SIZE]; // Keeps track of exactly which ACKs are missing
-    memset(ACKtable, '1', MAX_ACCEPTED_WINDOW_SIZE);
+    int ACKtable[500]; // Keeps track of exactly which ACKs are missing
+    memset(ACKtable, '1', 500);
     int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
 
@@ -212,12 +212,12 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
 
     unsigned int receiverAddressLength = sizeof (receiverAddress);
     unsigned int senderAddressLength = sizeof (senderAddress);
-    packet packetToSend[40]; // SET TO WINDOW SIZE WHEN PROPERLY CYCLING WINDOWS
+    packet packetToSend[5000]; // SET TO WINDOW SIZE WHEN PROPERLY CYCLING WINDOWS
     packet packetBuffer;
     // 
 
     for (int i = 0; i < packets; i++) {
-	if (ACKsMissing < WindowSize + 1) {
+	if (ACKsMissing < 1) {
 
 	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
 	    int ti = 0;
@@ -226,7 +226,10 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
 		printf("%c", packetToSend[seq].data[ti]);
 		ti++;
 	    }
+	    packetToSend[seq].sequenceNumber = seq;
 	    DEBUGMESSAGE(5, GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET, MessageTracker);
+	    DEBUGMESSAGE(4, GRN"\n SequenceNumber:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetToSend[seq].sequenceNumber, seq);
+
 
 	    if (i == packets - 1) {
 		WritePacket(&(packetToSend[seq]), 8, (void*) (packetToSend[seq].data), WindowSize, seq);
@@ -247,7 +250,7 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize) {
 	    ACKtable[ packetBuffer.sequenceNumber ] = 1;
 	    ACKsMissing--;
 	}
-	//usleep(500);
+	//usleep(5000);
     }
     //------------------------------
     printf("\n");

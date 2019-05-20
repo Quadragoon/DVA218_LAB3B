@@ -21,8 +21,8 @@
 #define RESET "\x1B[0m"
 //----------------------------------------------
 
-#define MIN_ACCEPTED_WINDOW_SIZE 10
-#define MAX_ACCEPTED_WINDOW_SIZE 10
+#define MIN_ACCEPTED_WINDOW_SIZE 15
+#define MAX_ACCEPTED_WINDOW_SIZE 15
 
 int socket_fd;
 int WindowSize = 0;
@@ -89,7 +89,7 @@ void ReadIncomingMessages() {
 	if (packetBuffer.flags == 7) { // Vad använder vi för flagga till datapaket?
 	    char Filler[10] = "I hear ya";
 	    printf("%s", packetBuffer.data);
-
+	    
 	    packet packetToSend;
 	    memset(&packetToSend, 0, sizeof (packet));
 	    
@@ -110,7 +110,7 @@ void ReadIncomingMessages() {
 	else if (packetBuffer.flags & PACKETFLAG_SYN) {
 	    ReceiveConnection(&packetBuffer, senderAddress, senderAddressLength);
 	}
-	if (packetBuffer.sequenceNumber == 246)
+	if (packetBuffer.sequenceNumber == 10E25)
 	    break; // compiler whines about endless loops without this bit
 	
     }
