@@ -139,7 +139,7 @@ void ReadIncomingMessages()
     {
         ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
         //--------------------------------------------------------------------------JANNE LEKER HÄR--------------------------------------------
-        if (packetBuffer.flags == 7)
+        if (packetBuffer.flags == 0)
         { // Vad använder vi för flagga till datapaket?
             char Filler[10] = "I hear ya";
             printf("%s", packetBuffer.data);
@@ -151,7 +151,7 @@ void ReadIncomingMessages()
                         packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
-        else if (packetBuffer.flags == 8)
+        else if (packetBuffer.flags == PACKETFLAG_FIN)
         { // Oh lordy, kill it with fire
             char Filler[10] = "thank u";
             printf("%s\n", packetBuffer.data);

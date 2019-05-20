@@ -230,9 +230,7 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
     }
     else
     {
-        DEBUGMESSAGE(1, YEL
-                "\n -Couldn't open file 'message'- "
-                RESET);
+        DEBUGMESSAGE(1, YEL"\n -Couldn't open file 'message'- "RESET);
 
     }
 }
@@ -271,33 +269,39 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     // 
 
     for (int i = 0; i < packets; i++) {
-	if (ACKs.Missing < 1) {
+	if (ACKs.Missing < 1)
+    {
 
-	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
-	    int ti = 0;
-	    for (int u = MessageTracker; u < (frameSize + MessageTracker); u++) { // Fill up the packet with data
-		packetsToSend[seq].data[ti] = readstring[u];
-		printf("%c", packetsToSend[seq].data[ti]);
-		ti++;
-	    }
-	    packetsToSend[seq].sequenceNumber = seq;
-	    DEBUGMESSAGE(5, GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET, MessageTracker);
-	    DEBUGMESSAGE(4, GRN"\n SequenceNumber:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetsToSend[seq].sequenceNumber, seq);
+        DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
+        int ti = 0;
+        for (int u = MessageTracker; u < (frameSize + MessageTracker); u++)
+        { // Fill up the packet with data
+            packetsToSend[seq].data[ti] = readstring[u];
+            printf("%c", packetsToSend[seq].data[ti]);
+            ti++;
+        }
+        packetsToSend[seq].sequenceNumber = seq;
+        DEBUGMESSAGE(5, GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET, MessageTracker);
+        DEBUGMESSAGE(4, GRN"\n SequenceNumber:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetsToSend[seq].sequenceNumber, seq);
 
 
-	    if (i == packets - 1) {
-		WritePacket(&(packetsToSend[seq]), PACKETFLAG_FIN, (void*) (packetsToSend[seq].data), frameSize, seq);
-	    } else {
-		WritePacket(&(packetsToSend[seq]), 0, (void*) (packetsToSend[seq].data), frameSize, seq); // Vilken flagga används för data?
-	    }
+        if (i == packets - 1)
+        {
+            WritePacket(&(packetsToSend[seq]), PACKETFLAG_FIN, (void*) (packetsToSend[seq].data), frameSize, seq);
+        }
+        else
+        {
+            WritePacket(&(packetsToSend[seq]), 0, (void*) (packetsToSend[seq].data), frameSize,
+                        seq); // Vilken flagga används för data?
+        }
 
-            SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
+        SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
 
-	    ACKs.Table[seq] = 0;
-	    ACKs.Missing++;
-	    seq++;
-	    MessageTracker += frameSize;
-	}
+        ACKs.Table[seq] = 0;
+        ACKs.Missing++;
+        seq++;
+        MessageTracker += frameSize;
+    }
 
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
 	if (packetBuffer.flags == PACKETFLAG_ACK) {

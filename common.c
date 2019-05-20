@@ -222,7 +222,7 @@ unsigned short CalculateChecksum(const packet* packet)
     return total;
 }
 
-int WritePacket(packet* packet, uint flags, void* data, byte dataLength, unsigned short sequenceNumber)
+int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLength, unsigned short sequenceNumber)
 {
     SetPacketFlag(packet, 0b11111111, 0); // clear all flags
     SetPacketFlag(packet, flags, 1); // ... and set the ones requested

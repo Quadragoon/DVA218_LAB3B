@@ -57,6 +57,6 @@ ssize_t ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* s
 
 int SetPacketFlag(packet* packet, uint flagToModify, int value);
 unsigned short CalculateChecksum(const packet* packet);
-int WritePacket(packet* packet, uint flags, void* data, byte dataLength, unsigned short sequenceNumber);
+int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLength, unsigned short sequenceNumber);
 
 #endif //DVA218_LAB3B_COMMON_H
