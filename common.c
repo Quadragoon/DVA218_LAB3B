@@ -2,23 +2,11 @@
 // Created by quadragoon on 2019-05-06.
 //
 
+#include <time.h>
 #include "common.h"
-
-//-------------------------- A bit of color plz
-#define RED   "\x1B[31m"
-#define GRN   "\x1B[32m"
-#define YEL   "\x1B[33m"
-#define BLU   "\x1B[34m"
-#define MAG   "\x1B[35m"
-#define CYN   "\x1B[36m"
-#define WHT   "\x1B[37m"
-#define RESET "\x1B[0m"
-//----------------------------------------------
-
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
-#define PACKET_BUFFER_SIZE 2048
 #define PACKET_LOSS 0
 #define PACKET_CORRUPT 0
 
@@ -35,7 +23,7 @@ int InitializeSocket()
         return socket_fd;
 }
 
-ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress,
+/*ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress,
                     unsigned int addressLength)
 {
     int retval = sendto(socket_fd, dataBuffer, length, MSG_CONFIRM, (struct sockaddr*) receiverAddress, addressLength);
@@ -45,9 +33,9 @@ ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const str
     }
     else
         return retval;
-}
+}*/
 
-ssize_t
+/*ssize_t
 ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength)
 {
     int retval = recvfrom(socket_fd, packetBuffer, DATA_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr*) senderAddress,
@@ -58,7 +46,7 @@ ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddr
     }
     else
         return retval;
-}
+}*/
 
 ssize_t
 SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength)
@@ -155,7 +143,7 @@ unsigned short CalculateChecksum(const packet* packet)
 
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
 
-    PrintPacketData(packetBytes);
+    PrintPacketData(packet);
 
     DEBUGMESSAGE_NONEWLINE(5, GRN
             "numBytesInPacket:["
@@ -241,7 +229,7 @@ int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLengt
 int ErrorGenerator(packet* packet)
 {
     time_t t;
-    srand((unsigned) time(&t));
+    srandom((unsigned) time(&t));
 
     byte* packetBytes = (byte*) packet;
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
@@ -257,11 +245,11 @@ int ErrorGenerator(packet* packet)
     DEBUGMESSAGE(5, YEL
             "[ Unaltered Packet ]"
             RESET);
-    PrintPacketData(packetBytes);
+    PrintPacketData(packet);
     //-------------------------------------------------
 
     // Randomize the chance for a packet to be lost
-    if ((rand() % 100) < PACKET_LOSS)
+    if ((random() % 100) < PACKET_LOSS)
     {
         DEBUGMESSAGE_NONEWLINE(1, RED
                 "[! Packet LoSt !]\n"
@@ -274,20 +262,20 @@ int ErrorGenerator(packet* packet)
     else
     {
         // Randomize the chance for a packet to be corrupted
-        if ((rand() % 100) < PACKET_CORRUPT)
+        if ((random() % 100) < PACKET_CORRUPT)
         {
             DEBUGMESSAGE_NONEWLINE(1, RED
                     "[! Packet CorRUptEd !]\n"
                     RESET);
-            int BytesToCorrupt = 1 + (rand() % (numBytesInPacket - 1));
+            int BytesToCorrupt = 1 + (random() % (numBytesInPacket - 1));
             for (int i = 0; i < BytesToCorrupt; i++)
             {
-                packetBytes[rand() % (numBytesInPacket - 1)] = (rand() % 255);
+                packetBytes[random() % (numBytesInPacket - 1)] = (random() % 255);
             }
             DEBUGMESSAGE(5, RED
                     "[ Altered Packet ]"
                     RESET);
-            PrintPacketData(packetBytes);
+            PrintPacketData(packet);
         }
         DEBUGMESSAGE_NONEWLINE(5, RED
                 "----------------------------------------------------------------------------------------- \n\n"

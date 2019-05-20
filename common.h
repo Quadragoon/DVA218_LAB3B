@@ -11,8 +11,19 @@
 #include <netinet/in.h>
 #include <string.h>
 
+//-------------------------- A bit of color plz
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define YEL   "\x1B[33m"
+#define BLU   "\x1B[34m"
+#define MAG   "\x1B[35m"
+#define CYN   "\x1B[36m"
+//#define WHT   "\x1B[37m"
+#define RESET "\x1B[0m"
+//----------------------------------------------
+
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
-#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
+//#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
 extern int debugLevel;
 #define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");} (1==1)
@@ -49,8 +60,8 @@ struct ACKmngr
 typedef struct packet packet;
 typedef struct ACKmngr ACKmngr;
 int InitializeSocket();
-ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
-ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
+//ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
+//ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
 
 ssize_t SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
 ssize_t ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
@@ -58,5 +69,8 @@ ssize_t ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* s
 int SetPacketFlag(packet* packet, uint flagToModify, int value);
 unsigned short CalculateChecksum(const packet* packet);
 int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLength, unsigned short sequenceNumber);
+
+int ErrorGenerator(packet* packet);
+int PrintPacketData(const packet* packet);
 
 #endif //DVA218_LAB3B_COMMON_H
