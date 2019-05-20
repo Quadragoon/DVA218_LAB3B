@@ -174,7 +174,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 //---------------------------------------------------------------------------------------------------------------
 // The function that reads packets from the receiver, is run by a separate thread
 
-void * ReadPackets(ACKmngr *ACKsPointer) {
+void* ReadPackets(ACKmngr *ACKsPointer) {
     DEBUGMESSAGE(2, "FINFINDER thread running\n");
 
     ACKmngr ACKs;
@@ -223,7 +223,7 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
             { // Check for the end of the file
                 break;
             }
-            readstring[tracker] = (char*) symbol;
+            readstring[tracker] = (char) symbol;
             tracker++;
         }
         fclose(fp);
@@ -238,7 +238,7 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr *ACKsPointer) {
+void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     system("clear"); // Clean up the console
     DEBUGMESSAGE(2, YEL"---[ Sending Message ]--- "RESET);
     float messagedivided = 0;
@@ -255,14 +255,18 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr 
     packets = ceil(messagedivided);
     DEBUGMESSAGE(4, GRN"Message is [ "RESET"%d"GRN" ] symbols long"RESET, MessageLength);
     DEBUGMESSAGE(4, GRN"Will split over [%.2f] rounded to [ "RESET"%d"GRN" ] packets"GRN, messagedivided, packets);
-    DEBUGMESSAGE(4, YEL"WindowSize is [ "RESET"%d"YEL" ] frames"RESET, WindowSize);
-
+    DEBUGMESSAGE(4, YEL"WindowSize is [ "RESET"%d"YEL" ] frames"RESET, windowSize);
 
     // TODO: Implement 'Send Message' to receiver, properly ----------- // Vilken flagga används för data?
 
     unsigned int receiverAddressLength = sizeof(receiverAddress);
     unsigned int senderAddressLength = sizeof(senderAddress);
-    packet packetToSend[5000]; // SET TO WINDOW SIZE WHEN PROPERLY CYCLING WINDOWS
+    packet* packetsToSend;
+    packetsToSend = malloc(sizeof(packet) * (windowSize + 1));
+    if (packetsToSend == NULL)
+    {
+        CRASHWITHERROR("malloc() in SlidingWindow() failed");
+    }
     packet packetBuffer;
     // 
 
@@ -272,22 +276,22 @@ void SlidingWindow(char readstring[MAX_MESSAGE_LENGTH], int WindowSize, ACKmngr 
 	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
 	    int ti = 0;
 	    for (int u = MessageTracker; u < (frameSize + MessageTracker); u++) { // Fill up the packet with data
-		packetToSend[seq].data[ti] = readstring[u];
-		printf("%c", packetToSend[seq].data[ti]);
+		packetsToSend[seq].data[ti] = readstring[u];
+		printf("%c", packetsToSend[seq].data[ti]);
 		ti++;
 	    }
-	    packetToSend[seq].sequenceNumber = seq;
+	    packetsToSend[seq].sequenceNumber = seq;
 	    DEBUGMESSAGE(5, GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET, MessageTracker);
-	    DEBUGMESSAGE(4, GRN"\n SequenceNumber:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetToSend[seq].sequenceNumber, seq);
+	    DEBUGMESSAGE(4, GRN"\n SequenceNumber:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetsToSend[seq].sequenceNumber, seq);
 
 
 	    if (i == packets - 1) {
-		WritePacket(&(packetToSend[seq]), PACKETFLAG_FIN, (void*) (packetToSend[seq].data), frameSize, seq);
+		WritePacket(&(packetsToSend[seq]), PACKETFLAG_FIN, (void*) (packetsToSend[seq].data), frameSize, seq);
 	    } else {
-		WritePacket(&(packetToSend[seq]), 0, (void*) (packetToSend[seq].data), frameSize, seq); // Vilken flagga används för data?
+		WritePacket(&(packetsToSend[seq]), 0, (void*) (packetsToSend[seq].data), frameSize, seq); // Vilken flagga används för data?
 	    }
 
-            SendPacket(socket_fd, &(packetToSend[seq]), &receiverAddress, receiverAddressLength);
+            SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
 
 	    ACKs.Table[seq] = 0;
 	    ACKs.Missing++;
@@ -318,7 +322,7 @@ int main(int argc, char* argv[])
     char c;
     char readstring[MAX_MESSAGE_LENGTH] = "\0";
     ACKmngr ACKs;
-    ACKmngr *ACKsPointer = &ACKs;
+    ACKmngr* ACKsPointer = &ACKs;
     memset(ACKs.Table, '1', ACK_TABLE_SIZE);
     ACKs.Missing = 0;
 
@@ -330,37 +334,39 @@ int main(int argc, char* argv[])
 
     // Create the thread checking for FINs from the receiver------
     pthread_t thread; //Thread ID
-    pthread_create(&thread, NULL, ReadPackets, ACKsPointer);
+    pthread_create(&thread, NULL, (void*)ReadPackets, ACKsPointer);
     //------------------------------------------------------------
 
     while (KillThreads == 0)
     {
         usleep(100);
 
-	system("clear"); // Clean up the console
-	LoadMessageFromFile(readstring);
-	printf("%s\n", readstring);
-	PrintMenu();
+        system("clear"); // Clean up the console
+        LoadMessageFromFile(readstring);
+        printf("%s\n", readstring);
+        PrintMenu();
 
         scanf(" %d", &command); // Get a command from the user
         while ((c = getchar()) != '\n' && c != EOF); //Rensar läsbufferten
 
-	switch (command) {
-	    case 1:
-		SlidingWindow(readstring, windowSize, ACKsPointer);
-		break;
-	    case 2:
-		// Just sending the user back to the start of the while loop
-		break;
-	    case 2049:
-		// TODO: Let the receiver properly know that we are closing down the shop 
-		close(socket_fd);
-		KillThreads = 1; // Make sure that we let the FINFINDER thread know that we are closing down the client
-		system("clear"); // Clean up the console
-		exit(EXIT_SUCCESS);
-		break;
-	    default: printf("Wrong input\n");
-	}
+        switch (command)
+        {
+            case 1:
+                SlidingWindow(readstring, ACKsPointer);
+                break;
+            case 2:
+                // Just sending the user back to the start of the while loop
+                break;
+            case 2049:
+                // TODO: Let the receiver properly know that we are closing down the shop
+                close(socket_fd);
+                KillThreads = 1; // Make sure that we let the FINFINDER thread know that we are closing down the client
+                system("clear"); // Clean up the console
+                exit(EXIT_SUCCESS);
+                break;
+            default:
+                printf("Wrong input\n");
+        }
     }
 
     KillThreads = 1;
