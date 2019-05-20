@@ -253,7 +253,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     // TODO: Implement 'Send Message' to receiver, properly ----------- //
 
     unsigned int receiverAddressLength = sizeof (receiverAddress);
-    unsigned int senderAddressLength = sizeof (senderAddress);
     packet* packetsToSend;
     packetsToSend = malloc(sizeof(packet) * (windowSize + 1));
     if (packetsToSend == NULL)

@@ -223,6 +223,7 @@ int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLengt
     packet->dataLength = dataLength;
 
     packet->sequenceNumber = sequenceNumber;
+    packet->nothing = packet->nothing;
     return 1; // 1 is returned on success
 }
 
