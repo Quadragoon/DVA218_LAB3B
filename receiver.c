@@ -10,17 +10,6 @@
 #include <zconf.h>
 #include "common.h"
 
-//-------------------------- A bit of color plz
-#define RED   "\x1B[31m"
-#define GRN   "\x1B[32m"
-#define YEL   "\x1B[33m"
-#define BLU   "\x1B[34m"
-#define MAG   "\x1B[35m"
-#define CYN   "\x1B[36m"
-#define WHT   "\x1B[37m"
-#define RESET "\x1B[0m"
-//----------------------------------------------
-
 #define MIN_ACCEPTED_WINDOW_SIZE 15
 #define MAX_ACCEPTED_WINDOW_SIZE 15
 #define MIN_ACCEPTED_FRAME_SIZE 100
@@ -128,7 +117,7 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
 
 void ReadIncomingMessages()
 {
-    struct sockaddr_in receiverAddress, senderAddress;
+    struct sockaddr_in senderAddress;
     memset(&senderAddress, 0, sizeof(struct sockaddr_in));
     unsigned int senderAddressLength = sizeof(senderAddress);
 
@@ -178,7 +167,7 @@ int main(int argc, char* argv[])
 {
     if (argc == 2)
     {
-        debugLevel = atoi(argv[1]);
+        debugLevel = strtol(argv[1], NULL, 10);
     }
 
     socket_fd = InitializeSocket();

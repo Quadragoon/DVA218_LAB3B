@@ -26,17 +26,6 @@
 
 #include "common.h"
 
-//-------------------------- A bit of color bitte
-#define RED   "\x1B[31m"
-#define GRN   "\x1B[32m"
-#define YEL   "\x1B[33m"
-#define BLU   "\x1B[34m"
-#define MAG   "\x1B[35m"
-#define CYN   "\x1B[36m"
-#define WHT   "\x1B[37m"
-#define RESET "\x1B[0m"
-//----------------------------------------------
-
 int socket_fd;
 unsigned short sequence = 0;
 int KillThreads = 0;
@@ -209,7 +198,6 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
     //---------------------------
 
     FILE* fp;
-    size_t len = 0;
     int symbol;
     int tracker = 0;
 
@@ -250,7 +238,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     // Figure out how many packets we need to send
     int MessageLength = strlen(readstring);
     messagedivided = (float) MessageLength / (float) frameSize;
-    packets = ceil(messagedivided);
+    packets = ceil((double)messagedivided);
     DEBUGMESSAGE(4, GRN"Message is [ "RESET"%d"GRN" ] symbols long"RESET, MessageLength);
     DEBUGMESSAGE(4, GRN"Will split over [%.2f] rounded to [ "RESET"%d"GRN" ] packets"GRN, messagedivided, packets);
     DEBUGMESSAGE(4, YEL"WindowSize is [ "RESET"%d"YEL" ] frames"RESET, windowSize);
@@ -320,7 +308,7 @@ int main(int argc, char* argv[])
 {
     if (argc == 2)
     {
-        debugLevel = atoi(argv[1]);
+        debugLevel = strtol(argv[1], NULL, 10);
     }
     int command = 0;
     char c;
@@ -367,7 +355,6 @@ int main(int argc, char* argv[])
                 KillThreads = 1; // Make sure that we let the FINFINDER thread know that we are closing down the client
                 system("clear"); // Clean up the console
                 exit(EXIT_SUCCESS);
-                break;
             default:
                 printf("Wrong input\n");
         }
