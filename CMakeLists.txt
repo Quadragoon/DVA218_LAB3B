@@ -6,4 +6,4 @@ find_package(Threads REQUIRED)
 add_executable(Sender sender.c common.c common.h)
 add_executable(Receiver receiver.c common.c common.h)
 
-target_link_libraries(Sender Threads::Threads)
+target_link_libraries(Sender Threads::Threads m)

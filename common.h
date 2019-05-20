@@ -19,8 +19,8 @@ extern int debugLevel;
 #define DEBUGMESSAGE_NONEWLINE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__);}
 
 #define LISTENING_PORT 23456
-#define PACKET_BUFFER_SIZE 2048
-#define PACKET_HEADER_LENGTH 6
+#define DATA_BUFFER_SIZE 65535
+#define PACKET_HEADER_LENGTH 8
 #define byte unsigned char
 
 #define PACKETFLAG_SYN 1u
@@ -33,10 +33,11 @@ extern int debugLevel;
 struct packet
 {
     byte flags;
-    byte dataLength;
+    byte nothing;
+    unsigned short dataLength;
     unsigned short sequenceNumber;
     unsigned short checksum;
-    byte data[255];
+    byte data[DATA_BUFFER_SIZE];
 };
 
 struct ACKmngr
