@@ -192,7 +192,7 @@ void PrintMenu()
     printf(YEL"Welcome!\n"RESET);
     printf(YEL"--------------------------\n"RESET);
     printf(CYN"[ "RESET"1"CYN" ]: Send Message\n"RESET);
-    printf(MAG"[ "RESET"2"MAG" ]: Reload Message\n"RESET);
+    printf(MAG"[ "RESET"2"MAG" ]: Preview Message\n"RESET);
     printf(RED"[ "RESET"2049"RED" ]: End program\n"RESET);
     printf(YEL"--------------------------\n"RESET);
 }
@@ -316,11 +316,7 @@ int main(int argc, char* argv[])
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
 
-    NegotiateConnection("127.0.0.1", windowSize, frameSize);
 
-    // Create the thread checking for FINs from the receiver------
-    pthread_t thread; //Thread ID
-    pthread_create(&thread, NULL, (void*)ReadPackets, ACKsPointer);
     //------------------------------------------------------------
 
     while (KillThreads == 0)
@@ -328,7 +324,7 @@ int main(int argc, char* argv[])
 	usleep(100);
 
 	system("clear"); // Clean up the console
-	LoadMessageFromFile(readstring);
+	
 	printf("%s\n", readstring);
 	PrintMenu();
 
@@ -344,9 +340,15 @@ int main(int argc, char* argv[])
         switch (command)
         {
             case 1:
+		NegotiateConnection("127.0.0.1", windowSize, frameSize);
+		// Create the thread checking for FINs from the receiver------
+		pthread_t thread; //Thread ID
+		pthread_create(&thread, NULL, (void*)ReadPackets, ACKsPointer);
+		// Send the Message
                 SlidingWindow(readstring, ACKsPointer);
                 break;
             case 2:
+		LoadMessageFromFile(readstring);
                 // Just sending the user back to the start of the while loop
                 break;
             case 2049:
