@@ -184,6 +184,20 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
     }
     return 0;
 }
+//---------------------------------------------------------------------------------------------------------------
+// The function that continously updates the roundTime average
+float roundTimeManager(int time)
+{
+    float roundTimeTable[5];
+
+    while(KillThreads == 0){
+	
+	
+	
+    }
+    KillThreads = 1;
+    pthread_exit(NULL);
+}
 
 //---------------------------------------------------------------------------------------------------------------
 // The function that reads packets from the receiver, is run by a separate thread
@@ -255,6 +269,8 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH])
         DEBUGMESSAGE(1, YELTEXT("\n -Couldn't open file 'message'- "));
     }
 }
+
+
 //---------------------------------------------------------------------------------------------------------------
 
 int ThreadedTimeout(timeoutHandlerData* timeoutData)
