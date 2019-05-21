@@ -31,6 +31,7 @@ unsigned short sequence = 0;
 int KillThreads = 0;
 byte windowSize = 4;
 unsigned short frameSize = 1000;
+float roundTime = 0;
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
@@ -50,6 +51,7 @@ struct sockaddr_in senderAddress;
 int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned short desiredFrameSize)
 {
     DEBUGMESSAGE(5, "Negotiating connection");
+    struct timeval timeStamp1, timeStamp2;
 
     // memset used to make sure that the address fields are filled with '0's
     memset(&receiverAddress, 0, sizeof(struct sockaddr_in));
@@ -85,6 +87,8 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
     packetData[2] = desiredFrameSizeBytes[1];
     WritePacket(&packetToSend, PACKETFLAG_SYN, (void*) packetData, 3, sequence);
 
+    gettimeofday(&timeStamp1, NULL); //--------------------------------------TIMESTAMP1
+    
     SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
     if (ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength) != -1)
     {
@@ -105,6 +109,10 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                             GRNTEXT("OK"));
                     windowSize = suggestedWindowSize;
                     frameSize = suggestedFrameSize;
+		    //------------------------------------------------------TIMESTAMP2
+		    gettimeofday(&timeStamp2, NULL);
+		    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
+		    //------------------------------------------------------
                     return 1;
                 }
                 else
@@ -146,6 +154,10 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                     DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
                     DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
                                  suggestedWindowSize, suggestedFrameSize);
+		    //------------------------------------------------------TIMESTAMP2
+		    gettimeofday(&timeStamp2, NULL);
+		    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
+		    //------------------------------------------------------
                     return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
                 }
                 else
@@ -404,7 +416,8 @@ int main(int argc, char* argv[])
     {
         usleep(1000);
         system("clear"); // Clean up the console
-
+	
+	printf("roundTime set to: [ %f ] us\n", roundTime);
         printf("%s\n", readstring);
         PrintMenu();
 
