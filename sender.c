@@ -172,7 +172,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 float roundTimeManager() {
     memset(timeStamper, 0, 50);
     float roundTimeTable[BASE_AVERAGE];
-    memset(roundTimeTable, '0', BASE_AVERAGE);
+    memset(roundTimeTable, 0, BASE_AVERAGE);
     float lastReportedRoundTime = 0;
     int i = 0;
     int divider = 0;
@@ -309,6 +309,7 @@ int ThreadedTimeout(timeoutHandlerData* timeoutData) {
     free(timeoutData);
     return numPreviousTimeouts;
 }
+
 //---------------------------------------------------------------------------------------------------------------
 
 void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
@@ -404,6 +405,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 //---------------------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
+    srandom(time(NULL));
     if (argc == 2) {
 	debugLevel = strtol(argv[1], NULL, 10);
     }
