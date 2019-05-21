@@ -33,6 +33,7 @@ int KillThreads = 0;
 byte windowSize = 4;
 unsigned short frameSize = 1000;
 float roundTime = 0;
+float averageRoundTime = 0;
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
@@ -48,6 +49,7 @@ sem_t windowSemaphore;
 
 #define TIMEOUT_DELAY 2
 #define MAX_TIMEOUT_RETRIES 999
+#define BASE_AVERAGE 5
 
 //---------------------------------------------------------------------------------------------------------------
 
@@ -192,12 +194,36 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 // The function that continously updates the roundTime average
 float roundTimeManager(int time)
 {
-    float roundTimeTable[5];
-
-    while (KillThreads == 0)
+    float roundTimeTable[BASE_AVERAGE];
+    memset(roundTimeTable, '0', BASE_AVERAGE);
+    float lastReportedRoundTime = 0;
+    int i = 0;
+    int divider = 0;
+    
+    while(KillThreads == 0)
     {
-
-
+	for(int a = 0; a < windowSize; a++){
+	    if(roundTime != lastReportedRoundTime)
+	    {
+		roundTimeTable[i] = roundTime;
+		i++;
+		if(i == BASE_AVERAGE)
+		{
+		    i = 0;
+		}
+		for(int u = 0; u < BASE_AVERAGE; u++){
+		    if(roundTimeTable[u] != 0){
+			divider++;
+			averageRoundTime += roundTimeTable[u];
+		    }
+		}
+		if(divider > 0){
+		    averageRoundTime = (averageRoundTime/divider);
+		    divider = 0;
+		    DEBUGMESSAGE_EXACT(20, CYN"averageRoundTime set to: ["RESET" %f "CYN"]\n"RESET, averageRoundTime);
+		}
+	    }
+	}
     }
     KillThreads = 1;
     pthread_exit(NULL);
@@ -379,10 +405,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     //usleep(300000);
 }
 
-//------------------------------
-printf("\n");
-//sleep(1);
-}
 //---------------------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[])
