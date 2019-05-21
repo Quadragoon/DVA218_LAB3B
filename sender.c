@@ -402,7 +402,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 
         SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
         printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET,
-                packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
+               packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
         ACKsPointer->Table[seq] = 0;
         (ACKsPointer->Missing)++;
 
