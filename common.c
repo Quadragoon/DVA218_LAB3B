@@ -89,7 +89,8 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
     }
     else
     {
-        packetBuffer->checksum = ntohs(packetBuffer->checksum); // TODO: behövs av någon anledning, inte hundra på varför
+        packetBuffer->checksum = ntohs(
+                packetBuffer->checksum); // TODO: behövs av någon anledning, inte hundra på varför
         unsigned short checksum = CalculateChecksum(packetBuffer);
         if (checksum == 65535u)
             return retval;
@@ -183,17 +184,7 @@ unsigned short CalculateChecksum(const packet* packet)
             unsigned short shortToAdd = 0;
             shortToAdd = ((packetBytes[i] * 256) + packetBytes[i + 1]);
             total += shortToAdd;
-            DEBUGMESSAGE_NONEWLINE(5, CYN
-                    "i:["
-                    RESET
-                    "%d"
-                    CYN
-                    "]     total:["
-                    RESET
-                    " %d "
-                    CYN
-                    "]\n"
-                    RESET, i, total);
+            DEBUGMESSAGE_NONEWLINE(5, CYN"i:["RESET"%d"CYN"]     total:["RESET" %d "CYN"]\n"RESET, i, total);
         }
     }
 

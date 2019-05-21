@@ -42,6 +42,8 @@ struct sockaddr_in senderAddress;
 
 #define MAX_MESSAGE_LENGTH 20000
 
+#define TIMEOUT_DELAY 2
+#define MAX_TIMEOUT_RETRIES 999
 
 //---------------------------------------------------------------------------------------------------------------
 
@@ -63,11 +65,11 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 
     if (retval == -1)
     {
-	CRASHWITHERROR("NegotiateConnection() failed to parse IP address");
+        CRASHWITHERROR("NegotiateConnection() failed to parse IP address");
     }
     else if (retval == 0)
     {
-	DEBUGMESSAGE(0, YEL"Invalid IP address entered."RESET);
+        DEBUGMESSAGE(0, YELTEXT("Invalid IP address entered"));
     }
 
     unsigned int receiverAddressLength = sizeof(receiverAddress);
@@ -78,84 +80,95 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 
     byte packetData[3];
     packetData[0] = desiredWindowSize;
-    byte* desiredFrameSizeBytes = (byte*)(&desiredFrameSize);
+    byte* desiredFrameSizeBytes = (byte*) (&desiredFrameSize);
     packetData[1] = desiredFrameSizeBytes[0];
     packetData[2] = desiredFrameSizeBytes[1];
-    WritePacket(&packetToSend, PACKETFLAG_SYN, (void*)packetData, 3, sequence);
+    WritePacket(&packetToSend, PACKETFLAG_SYN, (void*) packetData, 3, sequence);
 
     SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
     if (ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength) != -1)
     {
-	byte suggestedWindowSize = packetBuffer.data[0];
-	unsigned short suggestedFrameSize = ntohs((packetBuffer.data[1] * 256) + packetBuffer.data[2]);
+        byte suggestedWindowSize = packetBuffer.data[0];
+        unsigned short suggestedFrameSize = ntohs((packetBuffer.data[1] * 256) + packetBuffer.data[2]);
 
         if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK)
         {
-	    DEBUGMESSAGE(3, "SYN+ACK: Flags "GRN"OK"RESET);
+            DEBUGMESSAGE(3, "SYN+ACK: Flags "
+                    GRNTEXT("OK"));
             if (packetBuffer.sequenceNumber == (sequence))
             {
-		DEBUGMESSAGE(3, "SYN+ACK: Sequence number "GRN"OK"RESET);
+                DEBUGMESSAGE(3, "SYN+ACK: Sequence number "
+                        GRNTEXT("OK"));
                 if (suggestedWindowSize == desiredWindowSize && suggestedFrameSize == desiredFrameSize)
                 {
-		    DEBUGMESSAGE(2, "SYN+ACK: Data "GRN"OK."RESET);
-		    windowSize = suggestedWindowSize;
-		    frameSize = suggestedFrameSize;
-		    return 1;
+                    DEBUGMESSAGE(2, "SYN+ACK: Data "
+                            GRNTEXT("OK"));
+                    windowSize = suggestedWindowSize;
+                    frameSize = suggestedFrameSize;
+                    return 1;
                 }
                 else
                 {
-		    DEBUGMESSAGE(2, "SYN+ACK: Data "RED"NOT OK."RESET);
-		    DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters don't match desired ones. Data corrupted?");
-		    return -1;
-		}
+                    DEBUGMESSAGE(2, "SYN+ACK: Data "
+                            REDTEXT("NOT OK."));
+                    DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters don't match desired ones. Data corrupted?");
+                    return -1;
+                }
             }
             else
             {
-		DEBUGMESSAGE(2, "SYN+ACK: Sequence number "RED"NOT OK"RESET);
-		return -1;
-	    }
+                DEBUGMESSAGE(2, "SYN+ACK: Sequence number "
+                        REDTEXT("NOT OK."));
+                return -1;
+            }
         }
         else if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_NAK)
         {
-	    DEBUGMESSAGE(3, "SYN+NAK: Flags "GRN"OK"RESET);
+            DEBUGMESSAGE(3, "SYN+NAK: Flags "
+                    GRNTEXT("OK"));
             if (packetBuffer.sequenceNumber == (sequence))
             {
-		DEBUGMESSAGE(3, "SYN+NAK: Sequence number "GRN"OK"RESET);
+                DEBUGMESSAGE(3, "SYN+NAK: Sequence number "
+                        GRNTEXT("OK"));
                 if (suggestedWindowSize == desiredWindowSize && suggestedFrameSize == desiredFrameSize)
                 {
-		    DEBUGMESSAGE(1, "SYN+NAK: Data "RED"VERY NOT OK."RESET);
-		    DEBUGMESSAGE(1, "SYN+NAK: Received NAK suggestion for desired parameters.\n"
-			    YEL"Something is wrong."RESET);
-		    return -1;
+                    DEBUGMESSAGE(1, "SYN+NAK: Data "
+                            REDTEXT("VERY NOT OK."));
+                    DEBUGMESSAGE(1, "SYN+NAK: Received NAK suggestion for desired parameters.\n"
+                            YELTEXT("Something is wrong."));
+                    return -1;
                 }
                 else if (suggestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE &&
-			suggestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE &&
-			suggestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE &&
+                         suggestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE &&
+                         suggestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE &&
                          suggestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE)
                 {
-		    DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
-		    DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
-			    suggestedWindowSize, suggestedFrameSize);
-		    return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
+                    DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
+                    DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
+                                 suggestedWindowSize, suggestedFrameSize);
+                    return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
                 }
                 else
                 {
-		    DEBUGMESSAGE(2, "SYN+ACK: Data "RED"NOT OK."RESET);
-		    DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters out of bounds. Connection impossible.");
-		    return -1;
-		}
+                    DEBUGMESSAGE(2, "SYN+ACK: Data "
+                            REDTEXT("NOT OK."));
+                    DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters out of bounds. Connection impossible.");
+                    return -1;
+                }
             }
             else
             {
-		DEBUGMESSAGE(2, "SYN+ACK: Sequence number "RED"NOT OK"RESET);
-		return -1;
-	    }
+                DEBUGMESSAGE(2, "SYN+ACK: Sequence number "
+                        REDTEXT("NOT OK."));
+                return -1;
+            }
         }
         else
         {
-	    DEBUGMESSAGE(2, "SYN+ACK: Flags "RED"NOT OK"RESET);
-	    return -1;
-	}
+            DEBUGMESSAGE(2, "SYN+ACK: Flags "
+                    REDTEXT("NOT OK."));
+            return -1;
+        }
     }
     return 0;
 }
@@ -163,20 +176,23 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 //---------------------------------------------------------------------------------------------------------------
 // The function that reads packets from the receiver, is run by a separate thread
 
-void* ReadPackets(ACKmngr *ACKsPointer) {
-    DEBUGMESSAGE(2, "FINFINDER thread running\n");
+void* ReadPackets(ACKmngr* ACKsPointer)
+{
+    DEBUGMESSAGE(2, "ReadPackets thread running\n");
 
     packet packetBuffer;
-    unsigned int senderAddressLength = sizeof (senderAddress);    
-    
-    while (KillThreads == 0) {
-	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
-	if (packetBuffer.flags == PACKETFLAG_ACK) {
-	    ACKsPointer->Table[ packetBuffer.sequenceNumber ] = 1;
-	    (ACKsPointer->Missing)--;
-	    printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
-	}
-	// TODO: Look for FINs here
+    unsigned int senderAddressLength = sizeof(senderAddress);
+
+    while (KillThreads == 0)
+    {
+        ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+        if (packetBuffer.flags == PACKETFLAG_ACK)
+        {
+            ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
+            (ACKsPointer->Missing)--;
+            printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
+        }
+        // TODO: Look for FINs here
     }
 
     KillThreads = 1;
@@ -196,7 +212,8 @@ void PrintMenu()
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
+void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH])
+{
     system("clear"); // Clean up the console
     printf(YEL"---[ Message Preview ]--- \n"RESET);
 
@@ -211,27 +228,49 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
     {
         while (tracker < MAX_MESSAGE_LENGTH)
         {
-	    symbol = fgetc(fp);
+            symbol = fgetc(fp);
             if (symbol < 0)
             { // Check for the end of the file
-		break;
-	    }
-	    readstring[tracker] = (char) symbol;
-	    tracker++;
-	}
-	fclose(fp);
+                break;
+            }
+            readstring[tracker] = (char) symbol;
+            tracker++;
+        }
+        fclose(fp);
     }
     else
     {
-	DEBUGMESSAGE(1, YEL"\n -Couldn't open file 'message'- "RESET);
-
+        DEBUGMESSAGE(1, YELTEXT("\n -Couldn't open file 'message'- "));
     }
 }
 //---------------------------------------------------------------------------------------------------------------
 
-void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
+int ThreadedTimeout(timeoutHandlerData* timeoutData)
+{
+    ACKmngr* ACKsPointer = timeoutData->ACKsPointer;
+    int numPreviousTimeouts = timeoutData->numPreviousTimeouts;
+    int sequenceNumber = timeoutData->sequenceNumber;
+    packet* packetsToSend = timeoutData->packetsToSend;
+    DEBUGMESSAGE(2, "ThreadedTimeout for seq %d started", sequenceNumber);
+
+    sleep(TIMEOUT_DELAY);
+    while (ACKsPointer->Table[sequenceNumber] == 0 || numPreviousTimeouts >= MAX_TIMEOUT_RETRIES)
+    {
+        numPreviousTimeouts++;
+        SendPacket(socket_fd, &(packetsToSend[sequence]), &receiverAddress, sizeof(receiverAddress));
+        sleep(TIMEOUT_DELAY);
+    }
+
+    DEBUGMESSAGE(0, "About to exit out of a thread!");
+    free(timeoutData);
+    DEBUGMESSAGE(0, "Memory freed");
+    return numPreviousTimeouts;
+}
+
+void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
+{
     system("clear"); // Clean up the console
-    DEBUGMESSAGE(2, YEL"---[ Sending Message ]--- "RESET);
+    DEBUGMESSAGE(2, YELTEXT("---[ Sending Message ]--- "));
     float messagedivided = 0;
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
@@ -241,59 +280,90 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     // Figure out how many packets we need to send
     int MessageLength = strlen(readstring);
     messagedivided = (float) MessageLength / (float) frameSize;
-    packets = ceil((double)messagedivided);
-    DEBUGMESSAGE(4, GRN"Message is [ "RESET"%d"GRN" ] symbols long"RESET, MessageLength);
-    DEBUGMESSAGE(4, GRN"Will split over [%.2f] rounded to [ "RESET"%d"GRN" ] packets"GRN, messagedivided, packets);
-    DEBUGMESSAGE(4, YEL"WindowSize is [ "RESET"%d"YEL" ] frames"RESET, windowSize);
+    packets = ceil((double) messagedivided);
+    DEBUGMESSAGE(4, GRNTEXT("Message is [")
+            " %d "
+            GRNTEXT("] symbols long"), MessageLength);
+    DEBUGMESSAGE(4, GRNTEXT("Will split over [%.2f] rounded to [")
+            " %d "
+            GRNTEXT("] packets"), messagedivided, packets);
+    DEBUGMESSAGE(4, YELTEXT("WindowSize is [")
+            " %d "
+            YELTEXT("] frames"), windowSize);
 
     // TODO: Implement 'Send Message' to receiver, properly ----------- //
 
-    unsigned int receiverAddressLength = sizeof (receiverAddress);
+    unsigned int receiverAddressLength = sizeof(receiverAddress);
+
     packet* packetsToSend;
     packetsToSend = malloc(sizeof(packet) * (windowSize + 1));
-    
     if (packetsToSend == NULL)
     {
-	CRASHWITHERROR("malloc() in SlidingWindow() failed");
+        CRASHWITHERROR("malloc() in SlidingWindow() failed");
     }
-    
 
-    for (int i = 0; i < packets; i++) {
-	if (seq < windowSize) {
+    for (int i = 0; i < packets; i++)
+    {
+        if (seq < windowSize)
+        {
+            DEBUGMESSAGE_NONEWLINE(5, YELTEXT("Sending:"));
+            int trackPackData = 0;
+            for (int u = MessageTracker; u < (frameSize + MessageTracker); u++)
+            { // Fill up the outgoing packet with data
+                packetsToSend[seq].data[trackPackData] = readstring[u];
+                //printf("%c", packetsToSend[seq].data[trackPackData]);
+                trackPackData++;
+            }
+            packetsToSend[seq].sequenceNumber = seq; // Set the packet sequence number
+            DEBUGMESSAGE(3, GRNTEXT("\n Sending Packet:[")
+                    " %d "
+                    GRNTEXT("]   seq:[")
+                    " %d "
+                    GRNTEXT("]\n"), packetsToSend[seq].sequenceNumber, seq);
+            DEBUGMESSAGE(5, GRNTEXT("\n MessageTracker:[")
+                    " %d "
+                    GRNTEXT("]"), MessageTracker);
 
-	    DEBUGMESSAGE_NONEWLINE(5, YEL"Sending:"RESET);
-	    int trackPackData = 0;
-	    for (int u = MessageTracker; u < (frameSize + MessageTracker); u++) { // Fill up the outgoing packet with data
-		packetsToSend[seq].data[trackPackData] = readstring[u];
-		//printf("%c", packetsToSend[seq].data[trackPackData]);
-		trackPackData++;
-	    }
-	    packetsToSend[seq].sequenceNumber = seq; // Set the packet sequence number
-	    DEBUGMESSAGE(3, GRN"\n Sending Packet:["RESET" %d "GRN"]   seq:["RESET" %d "GRN"]\n"RESET, packetsToSend[seq].sequenceNumber, seq);
-	    DEBUGMESSAGE(5, GRN"\n MessageTracker:["RESET" %d "GRN"]"RESET, MessageTracker);
+            if (i == packets - 1)
+            {
+                WritePacket(&(packetsToSend[seq]), PACKETFLAG_FIN, (void*) (packetsToSend[seq].data), frameSize, seq);
+            }
+            else
+            {
+                WritePacket(&(packetsToSend[seq]), 0, (void*) (packetsToSend[seq].data), frameSize, seq);
+            }
 
-	    if (i == packets - 1) {
-		WritePacket(&(packetsToSend[seq]), PACKETFLAG_FIN, (void*) (packetsToSend[seq].data), frameSize, seq);
-	    } else {
-		WritePacket(&(packetsToSend[seq]), 0, (void*) (packetsToSend[seq].data), frameSize,
-			seq); // Vilken flagga används för data?
-	    }
+            SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
 
-	    SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
+            ACKsPointer->Table[seq] = 0;
+            (ACKsPointer->Missing)++;
 
-	    ACKsPointer->Table[seq] = 0;
-	    (ACKsPointer->Missing)++;
-	    seq++;
-	    MessageTracker += frameSize;
-	    printf("Message: [ %d ] Sent     ACKs.Missing:[ %d ]\n", packetsToSend[seq].sequenceNumber, ACKsPointer->Missing);
-	}else{
-	    i--;
-	    if(ACKsPointer->Missing == 0){
-		seq = 0;
-	    }
-	}
-	
-	//usleep(300000);
+            /*pthread_t thread;
+            timeoutHandlerData* timeoutData;
+            if ((timeoutData = malloc(sizeof(timeoutHandlerData))) == NULL)
+            {
+                CRASHWITHERROR("timeoutData malloc failed in SlidingWindow()");
+            }
+            timeoutData->packetsToSend = packetsToSend;
+            timeoutData->sequenceNumber = seq;
+            timeoutData->ACKsPointer = ACKsPointer;
+            timeoutData->numPreviousTimeouts = 0;
+            pthread_create(&thread, NULL, (void*) ThreadedTimeout, (void*) &timeoutData);*/
+
+            seq++;
+            MessageTracker += frameSize;
+            printf("Message: [ %d ] Sent     ACKs.Missing:[ %d ]\n", packetsToSend[seq].sequenceNumber, ACKsPointer->Missing);
+        }
+        else
+        {
+            i--;
+            if (ACKsPointer->Missing == 0)
+            {
+                seq = 0;
+            }
+        }
+
+        //usleep(300000);
     }
     //------------------------------
     printf("\n");
@@ -319,31 +389,31 @@ int main(int argc, char* argv[])
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
     NegotiateConnection("127.0.0.1", windowSize, frameSize);
-	usleep(5000);
-    
-	// Create the thread checking for messages from the receiver------
-	pthread_t thread; //Thread ID
-	pthread_create(&thread, NULL, (void*)ReadPackets, ACKsPointer);
-	//----------------------------------------------------------------
-	
+    usleep(5000);
+
+    // Create the thread checking for messages from the receiver------
+    pthread_t thread; //Thread ID
+    pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer);
+    //----------------------------------------------------------------
+
 
 
     //------------------------------------------------------------
 
     while (KillThreads == 0)
     {
-	usleep(1000);
-	system("clear"); // Clean up the console
-	
-	printf("%s\n", readstring);
-	PrintMenu();
-	
+        usleep(1000);
+        system("clear"); // Clean up the console
+
+        printf("%s\n", readstring);
+        PrintMenu();
+
         char* commandBuffer;
         if ((commandBuffer = malloc(128)) == NULL)
         {
             CRASHWITHERROR("commandBuffer malloc failed");
         }
-	
+
         scanf("%s", commandBuffer);
         command = strtol(commandBuffer, NULL, 10); // Get a command from the user
         while ((c = getchar()) != '\n' && c != EOF); //Rensar läsbufferten
@@ -351,11 +421,11 @@ int main(int argc, char* argv[])
         switch (command)
         {
             case 1:
-		LoadMessageFromFile(readstring);
+                LoadMessageFromFile(readstring);
                 SlidingWindow(readstring, ACKsPointer); // Send the Message
                 break;
             case 2:
-		LoadMessageFromFile(readstring);
+                LoadMessageFromFile(readstring);
                 // Just sending the user back to the start of the while loop
                 break;
             case 2049:

@@ -21,6 +21,14 @@
 //#define WHT   "\x1B[37m"
 #define RESET "\x1B[0m"
 //----------------------------------------------
+//-------------------------- A bit of defines plz
+#define REDTEXT(text) RED text RESET
+#define GRNTEXT(text) GRN text RESET
+#define YELTEXT(text) YEL text RESET
+#define BLUTEXT(text) BLU text RESET
+#define MAGTEXT(text) MAG text RESET
+#define CYNTEXT(text) CYN text RESET
+//----------------------------------------------
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 //#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
@@ -50,15 +58,24 @@ struct packet
     unsigned short checksum;
     byte data[DATA_BUFFER_SIZE];
 };
+typedef struct packet packet;
 
 struct ACKmngr
 {
     int Missing; // Keeps track of how many ACKs are still unaccounted for
     int Table[ACK_TABLE_SIZE];
 };
-
-typedef struct packet packet;
 typedef struct ACKmngr ACKmngr;
+
+struct timeoutHandlerData
+{
+    packet* packetsToSend;
+    ACKmngr* ACKsPointer;
+    int sequenceNumber;
+    int numPreviousTimeouts;
+};
+typedef struct timeoutHandlerData timeoutHandlerData;
+
 int InitializeSocket();
 //ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
 //ssize_t ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddress, unsigned int* addressLength);
