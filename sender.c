@@ -23,6 +23,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <math.h>
+#include <semaphore.h>
 
 #include "common.h"
 
@@ -35,6 +36,8 @@ float roundTime = 0;
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
+
+sem_t windowSemaphore;
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
@@ -88,7 +91,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
     WritePacket(&packetToSend, PACKETFLAG_SYN, (void*) packetData, 3, sequence);
 
     gettimeofday(&timeStamp1, NULL); //--------------------------------------TIMESTAMP1
-    
+
     SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
     if (ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength) != -1)
     {
@@ -109,10 +112,10 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                             GRNTEXT("OK"));
                     windowSize = suggestedWindowSize;
                     frameSize = suggestedFrameSize;
-		    //------------------------------------------------------TIMESTAMP2
-		    gettimeofday(&timeStamp2, NULL);
-		    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
-		    //------------------------------------------------------
+                    //------------------------------------------------------TIMESTAMP2
+                    gettimeofday(&timeStamp2, NULL);
+                    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
+                    //------------------------------------------------------
                     return 1;
                 }
                 else
@@ -154,10 +157,10 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                     DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
                     DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
                                  suggestedWindowSize, suggestedFrameSize);
-		    //------------------------------------------------------TIMESTAMP2
-		    gettimeofday(&timeStamp2, NULL);
-		    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
-		    //------------------------------------------------------
+                    //------------------------------------------------------TIMESTAMP2
+                    gettimeofday(&timeStamp2, NULL);
+                    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
+                    //------------------------------------------------------
                     return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
                 }
                 else
@@ -184,16 +187,17 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
     }
     return 0;
 }
+
 //---------------------------------------------------------------------------------------------------------------
 // The function that continously updates the roundTime average
 float roundTimeManager(int time)
 {
     float roundTimeTable[5];
 
-    while(KillThreads == 0){
-	
-	
-	
+    while (KillThreads == 0)
+    {
+
+
     }
     KillThreads = 1;
     pthread_exit(NULL);
@@ -216,6 +220,7 @@ void* ReadPackets(ACKmngr* ACKsPointer)
         {
             ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
             (ACKsPointer->Missing)--;
+            sem_post(&windowSemaphore);
             printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
         }
         // TODO: Look for FINs here
@@ -299,23 +304,22 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 {
     system("clear"); // Clean up the console
     DEBUGMESSAGE(2, YELTEXT("---[ Sending Message ]--- "));
-    float messagedivided = 0;
+    float messageDivided = 0;
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
-    int sentMessages = 0;
 
     int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
     // Figure out how many packets we need to send
-    int MessageLength = strlen(readstring);
-    messagedivided = (float) MessageLength / (float) frameSize;
-    packets = ceil((double) messagedivided);
+    int messageLength = strlen(readstring);
+    messageDivided = (float) messageLength / (float) frameSize;
+    packets = ceil((double) messageDivided);
     DEBUGMESSAGE(4, GRNTEXT("Message is [")
             " %d "
-            GRNTEXT("] symbols long"), MessageLength);
+            GRNTEXT("] symbols long"), messageLength);
     DEBUGMESSAGE(4, GRNTEXT("Will split over [%.2f] rounded to [")
             " %d "
-            GRNTEXT("] packets"), messagedivided, packets);
+            GRNTEXT("] packets"), messageDivided, packets);
     DEBUGMESSAGE(4, YELTEXT("WindowSize is [")
             " %d "
             YELTEXT("] frames"), windowSize);
@@ -328,77 +332,56 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     packetsToSend = malloc(sizeof(packet) * (windowSize + 1));
     if (packetsToSend == NULL)
     {
-        CRASHWITHERROR("malloc() in SlidingWindow() failed");
+        CRASHWITHERROR("malloc() for packetsToSend in SlidingWindow() failed");
     }
+
+    int bufferSlot = 0;
 
     for (int i = 0; i < packets; i++)
     {
-        if (sentMessages < windowSize)
+        sem_wait(&windowSemaphore);
+        DEBUGMESSAGE_NONEWLINE(5, YELTEXT("Sending:"));
+        for (int j = MessageTracker; j < (frameSize + MessageTracker); j++)
+        { // Fill up the outgoing packet with data
+            packetsToSend[bufferSlot].data[j - MessageTracker] = readstring[j];
+        }
+        //printf("--------------------------------------\npacketsToSend[sentMessages].sequenceNumber :[ %d ]         seq: [ %d ]      sentMessages: [ %d ]\n", packetsToSend[sentMessages].sequenceNumber, seq, sentMessages);
+
+        if (i == packets - 1)
         {
-            DEBUGMESSAGE_NONEWLINE(5, YELTEXT("Sending:"));
-            int trackPackData = 0;
-            for (int u = MessageTracker; u < (frameSize + MessageTracker); u++)
-            { // Fill up the outgoing packet with data
-                packetsToSend[sentMessages].data[trackPackData] = readstring[u];
-                //printf("%c", packetsToSend[sentMessages].data[trackPackData]);
-                trackPackData++;
-            }
-            packetsToSend[sentMessages].sequenceNumber = seq; // Set the packet sequence number
-	    //printf("--------------------------------------\npacketsToSend[sentMessages].sequenceNumber :[ %d ]         seq: [ %d ]      sentMessages: [ %d ]\n", packetsToSend[sentMessages].sequenceNumber, seq, sentMessages);
-            DEBUGMESSAGE(3, GRNTEXT("\n Sending Packet:[")
-                    " %d "
-                    GRNTEXT("]   seq:[")
-                    " %d "
-                    GRNTEXT("]\n"), packetsToSend[sentMessages].sequenceNumber, seq);
-            DEBUGMESSAGE(5, GRNTEXT("\n MessageTracker:[")
-                    " %d "
-                    GRNTEXT("]"), MessageTracker);
-
-            if (i == packets - 1)
-            {
-                WritePacket(&(packetsToSend[sentMessages]), PACKETFLAG_FIN, (void*) (packetsToSend[sentMessages].data), frameSize, seq);
-            }
-            else
-            {
-                WritePacket(&(packetsToSend[sentMessages]), 0, (void*) (packetsToSend[sentMessages].data), frameSize, seq);
-            }
-
-            SendPacket(socket_fd, &(packetsToSend[sentMessages]), &receiverAddress, receiverAddressLength);
-	    printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET, packetsToSend[sentMessages].sequenceNumber, ACKsPointer->Missing);
-            ACKsPointer->Table[seq] = 0;
-            (ACKsPointer->Missing)++;
-
-            /*pthread_t thread;
-            timeoutHandlerData* timeoutData;
-            if ((timeoutData = malloc(sizeof(timeoutHandlerData))) == NULL)
-            {
-                CRASHWITHERROR("timeoutData malloc failed in SlidingWindow()");
-            }
-            timeoutData->packetsToSend = packetsToSend;
-            timeoutData->sequenceNumber = seq;
-            timeoutData->ACKsPointer = ACKsPointer;
-            timeoutData->numPreviousTimeouts = 0;
-            pthread_create(&thread, NULL, (void*) ThreadedTimeout, (void*) &timeoutData);*/
-
-            seq++;
-	    sentMessages++;
-            MessageTracker += frameSize;
-            
+            WritePacket(&(packetsToSend[bufferSlot]), PACKETFLAG_FIN, (void*) (packetsToSend[bufferSlot].data), frameSize, seq);
         }
         else
         {
-            i--;
-            if (ACKsPointer->Missing == 0)
-            {
-                sentMessages = 0;
-            }
+            WritePacket(&(packetsToSend[bufferSlot]), 0, (void*) (packetsToSend[bufferSlot].data), frameSize, seq);
         }
 
-        //usleep(300000);
+        DEBUGMESSAGE(3, GRNTEXT("\n Sending Packet:[")
+                " %d "
+                GRNTEXT("]   seq:[")
+                " %d "
+                GRNTEXT("]\n"), packetsToSend[bufferSlot].sequenceNumber, seq);
+        DEBUGMESSAGE(5, GRNTEXT("\n MessageTracker:[")
+                " %d "
+                GRNTEXT("]"), MessageTracker);
+
+        SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
+        printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET,
+                packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
+        ACKsPointer->Table[seq] = 0;
+        (ACKsPointer->Missing)++;
+
+        seq++;
+        bufferSlot++;
+        MessageTracker += frameSize;
     }
-    //------------------------------
-    printf("\n");
-    //sleep(1);
+
+    //usleep(300000);
+}
+
+//------------------------------
+printf("\n");
+//sleep(1);
 }
 //---------------------------------------------------------------------------------------------------------------
 
@@ -419,13 +402,29 @@ int main(int argc, char* argv[])
     DEBUGMESSAGE(5, "Intializing socket...");
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
-    NegotiateConnection("127.0.0.1", windowSize, frameSize);
+    int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
+    if (retval == 1)
+    {// Connection successful!
+        if (sem_init(&windowSemaphore, 0, windowSize) == -1)
+        {
+            CRASHWITHERROR("Semaphore initialization failed");
+        }
+    }
+    else if (retval == 0)
+    {// Error, but probably incorrect parameters entered
+
+    }
+    else if (retval == -1)
+    {// Error. Probably bad.
+
+    }
     usleep(5000);
 
     // Create the thread checking for messages from the receiver------
     pthread_t thread; //Thread ID
-    if(pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer) != 0){
-	CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
+    if (pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer) != 0)
+    {
+        CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
     }
     //----------------------------------------------------------------
 
@@ -437,7 +436,7 @@ int main(int argc, char* argv[])
     {
         usleep(1000);
         system("clear"); // Clean up the console
-	
+
         printf("%s\n", readstring);
         PrintMenu();
 
