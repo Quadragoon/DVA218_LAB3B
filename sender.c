@@ -220,6 +220,7 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 
     while (KillThreads == 0) {
 	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+	sem_post(&roundTimeSemaphore); // Add 1 to roundTimeSemaphore
 	if (packetBuffer.flags == PACKETFLAG_ACK) {
 	    //-------------------------------------------- Updating the roundTime
 	    for (int i = 0; i < 50; i++) {
@@ -264,7 +265,7 @@ void PrintMenu() {
     sem_getvalue(&roundTimeSemaphore, &roundTimeSemCounter);
 
     printf(YEL"--------------------------\n"RESET);
-    printf(YEL"Welcome!  "RESET YEL"\n[%d] Roundtime set to"RESET" %.0f"YEL"us\n"RESET, roundTime, roundTimeSemCounter);
+    printf(YEL"Welcome!  "RESET YEL"\n[%d] Roundtime Average"RESET" %.0f"YEL"us\n"RESET, averageRoundTime, roundTimeSemCounter);
     printf(YEL"--------------------------\n"RESET);
     printf(CYN"[ "RESET"1"CYN" ]: Send Message\n"RESET);
     printf(MAG"[ "RESET"2"MAG" ]: Preview Message\n"RESET);
