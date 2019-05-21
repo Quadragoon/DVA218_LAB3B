@@ -179,8 +179,15 @@ float roundTimeManager() {
     int roundTimeSemCounter = 0;
     DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, MAG"roundTimeManager thread up and running, waiting for roundTimeSemaphore\n"RESET);
 
-    while (KillThreads == 0) {
+    while (KillThreads != 1) {
 	sem_wait(&roundTimeSemaphore);
+	if (KillThreads == 1) {
+	    printf(RED"------------roundTimeManager KillThreads: ["RESET" %d "RED"]------------\n"RESET, KillThreads);
+	    printf(RED"------------roundTimeManager thread shutting down------------\n"RESET);
+	    usleep(1000);
+	    pthread_exit(NULL);
+	    break;
+	}
 	sem_getvalue(&roundTimeSemaphore, &roundTimeSemCounter);
 	for (int a = 0; a < windowSize; a++) {
 	    if (roundTime != lastReportedRoundTime) {
@@ -197,15 +204,22 @@ float roundTimeManager() {
 		}
 		if (divider > 0) {
 		    averageRoundTime = (averageRoundTime / divider);
-		    DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN"averageRoundTime set to: ["RESET" %f "CYN"]     using: ["RESET" %d "CYN"] samples.  SemCounter: ["RESET" %d "CYN"]\n"RESET, averageRoundTime, divider, roundTimeSemCounter);
+		    DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN"averageRoundTime set to: ["RESET" %.0f "CYN"]     using: ["RESET" %d "CYN"] samples.  SemCounter: ["RESET" %d "CYN"]\n"RESET, averageRoundTime, divider, roundTimeSemCounter);
 		    divider = 0;
 		}
 		lastReportedRoundTime = roundTime;
+	    } else {
+		DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, ".");
+		//usleep(100);
 	    }
 	}
     }
-    KillThreads = 1;
+
+
+    printf(RED"------------roundTimeManager thread shutting down------------\n"RESET);
+    usleep(1000);
     pthread_exit(NULL);
+
 }
 
 //---------------------------------------------------------------------------------------------------------------
@@ -218,9 +232,16 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
     packet packetBuffer;
     unsigned int senderAddressLength = sizeof (senderAddress);
 
-    while (KillThreads == 0) {
-	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+    while (KillThreads != 1) {
+	ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength); // Thread gets stuck here on shutdown?
 	sem_post(&roundTimeSemaphore); // Add 1 to roundTimeSemaphore
+	if (KillThreads == 1) {
+	    printf(RED"------------ReadPackets KillThreads: ["RESET" %d "RED"]------------\n"RESET, KillThreads);
+	    printf(RED"------------ReadPackets thread shutting down------------\n"RESET);
+	    usleep(1000);
+	    pthread_exit(NULL);
+	    break;
+	}
 	if (packetBuffer.flags == PACKETFLAG_ACK) {
 	    //-------------------------------------------- Updating the roundTime
 	    for (int i = 0; i < 50; i++) {
@@ -251,11 +272,24 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 	    }
 	    DEBUGMESSAGE(3, "ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
 	}
+	else if (packetBuffer.flags == PACKETFLAG_FIN) 
+	{
+	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
+	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
+	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
+	    KillThreads = 1;
+	    printf(RED"------------ReadPackets KillThreads: ["RESET" %d "RED"]------------\n"RESET, KillThreads);
+	    printf(RED"------------ReadPackets thread shutting down------------\n"RESET);
+	    usleep(1000);
+	    pthread_exit(NULL);
+	    break;	
+	}
 
-	// TODO: Look for FINs here
     }
 
-    KillThreads = 1;
+
+    printf(RED"------------ReadPackets thread shutting down------------\n"RESET);
+    usleep(1000);
     pthread_exit(NULL);
 }
 //---------------------------------------------------------------------------------------------------------------
@@ -316,6 +350,7 @@ int ThreadedTimeout(timeoutHandlerData* timeoutData) {
 	sleep(TIMEOUT_DELAY);
     }
 
+    printf(RED"------------ThreadedTimeout thread shutting down------------\n"RESET);
     free(timeoutData);
     return numPreviousTimeouts;
 }
@@ -417,6 +452,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 //---------------------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
+    system("clear");
     srandom(time(NULL));
     if (argc == 2) {
 	debugLevel = strtol(argv[1], NULL, 10);
@@ -483,26 +519,39 @@ int main(int argc, char* argv[]) {
 
 	switch (command) {
 	    case 1:
+		system("clear"); // Clean up the console
 		LoadMessageFromFile(readstring);
-
 		SlidingWindow(readstring, ACKsPointer); // Send the Message
 		break;
 	    case 2:
 		LoadMessageFromFile(readstring);
+		printf("%s\n", readstring);
 		// Just sending the user back to the start of the while loop
 		break;
 	    case 2049:
 		// TODO: Let the receiver properly know that we are closing down the shop
-		close(socket_fd);
-		KillThreads = 1; // Make sure that we let the FINFINDER thread know that we are closing down the client
-		system("clear"); // Clean up the console
-		exit(EXIT_SUCCESS);
+		// TODO: Let the receiver properly know that we are closing down the shop
+		// TODO: Let the receiver properly know that we are closing down the shop
+		system("clear");
+		KillThreads = 1; // Make sure that we let the other threads know that we are closing down the client
+
 	    default:
 		printf("Wrong input\n");
 	}
     }
 
-    KillThreads = 1;
+    //
+    printf(YEL"SHUTTING DOWN....\n"RESET);
+    sem_post(&roundTimeSemaphore); // Make sure that the rounTimeManager isn't stuck.
+    usleep(10000);
+    close(socket_fd);
+    for (int p = 0; p < 10; p++) {
+	usleep(100000);
+    }
+    printf("Thank you come again :D\n");
+    sleep(1);
+    system("clear"); // Clean up the console
+    exit(EXIT_SUCCESS);
     return 0;
 }
 
