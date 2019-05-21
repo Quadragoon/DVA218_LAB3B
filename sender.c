@@ -34,12 +34,15 @@ byte windowSize = 4;
 unsigned short frameSize = 1000;
 float roundTime = 0;
 float averageRoundTime = 0;
+struct roundTimeHandler timeStamper[50];
+
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
 
 sem_t windowSemaphore;
 int lowestSequenceAwaited = -1;
+
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
@@ -160,10 +163,6 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                     DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
                     DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
                                  suggestedWindowSize, suggestedFrameSize);
-                    //------------------------------------------------------TIMESTAMP2
-                    gettimeofday(&timeStamp2, NULL);
-                    roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
-                    //------------------------------------------------------
                     return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
                 }
                 else
@@ -195,6 +194,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 // The function that continously updates the roundTime average
 float roundTimeManager(int time)
 {
+    memset(timeStamper,0,50);
     float roundTimeTable[BASE_AVERAGE];
     memset(roundTimeTable, '0', BASE_AVERAGE);
     float lastReportedRoundTime = 0;
@@ -245,6 +245,16 @@ void* ReadPackets(ACKmngr* ACKsPointer)
         ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
         if (packetBuffer.flags == PACKETFLAG_ACK)
         {
+	    //-------------------------------------------- Updating the roundTime
+	    for(int i = 0; i < 50; i++){
+		if(timeStamper[i].sequence == packetBuffer.sequenceNumber){
+		    gettimeofday(&timeStamper[i].timeStampEnd, NULL); //--------------------------------------TIMESTAMPEND
+		    roundTime = (timeStamper[i].timeStampEnd.tv_usec - timeStamper[i].timeStampStart.tv_usec);
+		    break;
+		}
+	    }
+	    //--------------------------------------------
+	    
             ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
             (ACKsPointer->Missing)--;
 
@@ -334,7 +344,7 @@ int ThreadedTimeout(timeoutHandlerData* timeoutData)
     DEBUGMESSAGE(0, "Memory freed");
     return numPreviousTimeouts;
 }
-
+//---------------------------------------------------------------------------------------------------------------
 void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 {
     system("clear"); // Clean up the console
@@ -342,6 +352,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     float messageDivided = 0;
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
+    int stampID = 0;
 
     int messageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
@@ -399,7 +410,13 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
         DEBUGMESSAGE(5, GRNTEXT("\n messageTracker:[")
                 " %d "
                 GRNTEXT("]"), messageTracker);
-
+	
+	timeStamper[stampID].sequence = packetsToSend[bufferSlot].sequenceNumber;
+	gettimeofday(&timeStamper[stampID].timeStampStart, NULL); //--------------------------------------TIMESTAMP1
+	stampID++;
+	if(stampID == 50){
+	    stampID = 0;
+	}
         SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
         printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET,
                packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
