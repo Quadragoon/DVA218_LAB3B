@@ -266,7 +266,7 @@ void* ReadPackets(ACKmngr* ACKsPointer)
                 else
                     lowestSequenceAwaited++;
             }
-            printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
+            DEBUGMESSAGE(3, "ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
         }
         // TODO: Look for FINs here
     }
@@ -408,8 +408,20 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
                 GRNTEXT("]"), messageTracker);
 
         SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
-        DEBUGMESSAGE(3, YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET,
-               packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
+        DEBUGMESSAGE(3, YEL
+                "Message: ["
+                RESET
+                " %d "
+                YEL
+                "] Sent     "
+                CYN
+                "ACKs.Missing:["
+                RESET
+                " %d "
+                CYN
+                "]\n"
+                RESET,
+                     packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
         ACKsPointer->Table[seq] = 0;
         (ACKsPointer->Missing)++;
 

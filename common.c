@@ -51,11 +51,8 @@ ReceiveMessage(int socket_fd, char* packetBuffer, struct sockaddr_in* senderAddr
 ssize_t
 SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiverAddress, unsigned int addressLength)
 {
-    DEBUGMESSAGE(3, "Sending packet");
     packetToSend->checksum = 0;
     packetToSend->checksum = (CalculateChecksum(packetToSend) ^ 65535u);
-
-    DEBUGMESSAGE(3, "Checksum is set to %d", packetToSend->checksum);
 
     int packetLength = PACKET_HEADER_LENGTH + packetToSend->dataLength;
 
