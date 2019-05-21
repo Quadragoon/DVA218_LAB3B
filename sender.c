@@ -412,7 +412,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
                 GRNTEXT("]"), messageTracker);
 	
 	timeStamper[stampID].sequence = packetsToSend[bufferSlot].sequenceNumber;
-	gettimeofday(&timeStamper[stampID].timeStampStart, NULL); //--------------------------------------TIMESTAMP1
+	gettimeofday(&timeStamper[stampID].timeStampStart, NULL); //--------------------------------------TIMESTAMPSTART
 	stampID++;
 	if(stampID == 50){
 	    stampID = 0;

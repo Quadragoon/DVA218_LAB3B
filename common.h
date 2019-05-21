@@ -2,6 +2,15 @@
 // Created by quadragoon on 2019-05-06.
 //
 
+// DEBUG LEVEL TABLE! If you use debug levels, put 'em here.
+// General levels:
+// 0: Messages the user wants to see every time (invalid parameter input etc.)
+// 1-3: Messages that display more and more information about what's going on and going wrong
+// EXACT levels:
+// 15: Checksum calculation
+// 20: roundTime calculation
+// 25: Error generator
+
 #ifndef DVA218_LAB3B_COMMON_H
 #define DVA218_LAB3B_COMMON_H
 
@@ -38,6 +47,10 @@ extern int debugLevel;
 #define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");} (1==1)
 #define DEBUGMESSAGE_NONEWLINE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__);} (1==1)
 #define DEBUGMESSAGE_EXACT(level, ...) if (debugLevel == level){printf(__VA_ARGS__);} (1==1)
+
+#define DEBUGLEVEL_CHECKSUM 15
+#define DEBUGLEVEL_ROUNDTIME 20
+#define DEBUGLEVEL_ERRORGENERATOR 25
 
 #define LISTENING_PORT 23456
 #define DATA_BUFFER_SIZE 65535
@@ -77,6 +90,14 @@ struct timeoutHandlerData
     int numPreviousTimeouts;
 };
 typedef struct timeoutHandlerData timeoutHandlerData;
+
+struct roundTimeHandler
+{
+    struct timeval timeStampStart;
+    struct timeval timeStampEnd;
+    unsigned int sequence;
+};
+typedef struct roundTimeHandler roundTimeHandler;
 
 int InitializeSocket();
 //ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);
