@@ -40,7 +40,7 @@ struct roundTimeHandler timeStamper[50];
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
 
-sem_t windowSemaphore;
+sem_t windowSemaphore, roundTimeSemaphore;
 int lowestSequenceAwaited = -1;
 
 
@@ -170,14 +170,18 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 // The function that continously updates the roundTime average
 
 float roundTimeManager() {
-    memset(timeStamper, 0, 50);
+    memset(timeStamper, 0, 50 * 8);
     float roundTimeTable[BASE_AVERAGE];
     memset(roundTimeTable, '0', BASE_AVERAGE);
     float lastReportedRoundTime = 0;
     int i = 0;
     int divider = 0;
+    int roundTimeSemCounter = 0;
+    DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, MAG"roundTimeManager thread up and running, waiting for roundTimeSemaphore\n"RESET);
 
     while (KillThreads == 0) {
+	sem_wait(&roundTimeSemaphore);
+	sem_getvalue(&roundTimeSemaphore, &roundTimeSemCounter);
 	for (int a = 0; a < windowSize; a++) {
 	    if (roundTime != lastReportedRoundTime) {
 		roundTimeTable[i] = roundTime;
@@ -193,14 +197,8 @@ float roundTimeManager() {
 		}
 		if (divider > 0) {
 		    averageRoundTime = (averageRoundTime / divider);
+		    DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN"averageRoundTime set to: ["RESET" %f "CYN"]     using: ["RESET" %d "CYN"] samples.  SemCounter: ["RESET" %d "CYN"]\n"RESET, averageRoundTime, divider, roundTimeSemCounter);
 		    divider = 0;
-		    DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN
-			    "averageRoundTime set to: ["
-			    RESET
-			    " %f "
-			    CYN
-			    "]\n"
-			    RESET, averageRoundTime);
 		}
 		lastReportedRoundTime = roundTime;
 	    }
@@ -215,6 +213,7 @@ float roundTimeManager() {
 
 void* ReadPackets(ACKmngr* ACKsPointer) {
     DEBUGMESSAGE(3, "ReadPackets thread running\n");
+    int MissingACKS = 0;
 
     packet packetBuffer;
     unsigned int senderAddressLength = sizeof (senderAddress);
@@ -233,7 +232,7 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 	    //--------------------------------------------
 
 	    ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
-	    (ACKsPointer->Missing)--;
+	    //(ACKsPointer->Missing)--;
 
 	    while (ACKsPointer->Table[lowestSequenceAwaited] == 1) {
 		sem_post(&windowSemaphore);
@@ -242,8 +241,16 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 		else
 		    lowestSequenceAwaited++;
 	    }
+	    MissingACKS = 0;
+	    for (int y = 0; y < ACK_TABLE_SIZE; y++) {
+		if (ACKsPointer->Table[y] == 0) {
+		    MissingACKS++;
+		}
+		ACKsPointer->Missing = MissingACKS;
+	    }
 	    DEBUGMESSAGE(3, "ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
 	}
+
 	// TODO: Look for FINs here
     }
 
@@ -253,8 +260,11 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 //---------------------------------------------------------------------------------------------------------------
 
 void PrintMenu() {
+    int roundTimeSemCounter = 0;
+    sem_getvalue(&roundTimeSemaphore, &roundTimeSemCounter);
+
     printf(YEL"--------------------------\n"RESET);
-    printf(YEL"Welcome!  "RESET YEL"\nRoundtime set to"RESET" %.0f"YEL"us\n"RESET, roundTime);
+    printf(YEL"Welcome!  "RESET YEL"\n[%d] Roundtime set to"RESET" %.0f"YEL"us\n"RESET, roundTime, roundTimeSemCounter);
     printf(YEL"--------------------------\n"RESET);
     printf(CYN"[ "RESET"1"CYN" ]: Send Message\n"RESET);
     printf(MAG"[ "RESET"2"MAG" ]: Preview Message\n"RESET);
@@ -288,7 +298,6 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
 	DEBUGMESSAGE(0, YELTEXT("\n -Couldn't open file 'message'- "));
     }
 }
-
 
 //---------------------------------------------------------------------------------------------------------------
 
@@ -363,38 +372,40 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 	else
 	    WritePacket(&(packetsToSend[bufferSlot]), 0, (void*) (packetsToSend[bufferSlot].data), frameSize, seq);
 
-	DEBUGMESSAGE(3, GRNTEXT("\n Sending Packet:[")
-		" %d "
-		GRNTEXT("]   seq:[")
-		" %d "
-		GRNTEXT("]\n"), packetsToSend[bufferSlot].sequenceNumber, seq);
-	DEBUGMESSAGE(3, GRNTEXT("\n messageTracker:[")
-		" %d "
-		GRNTEXT("]"), messageTracker);
+	DEBUGMESSAGE(3, BLU"\n----------------------Sending Packet:["RESET" %d "BLU"]   seq:["RESET" %d "BLU"]   messageTracker:["RESET" %d "BLU"]"RESET, packetsToSend[bufferSlot].sequenceNumber, seq, messageTracker);
 
+	// Managing the semaphore responsible for letting lose the roundTimeManager--------------------
+	sem_post(&roundTimeSemaphore); // Add 1 to roundTimeSemaphore
+	//-------------------------------------------------------------
+
+	//Providing timestamps for the roundTimeManager to use
 	timeStamper[stampID].sequence = packetsToSend[bufferSlot].sequenceNumber;
 	gettimeofday(&timeStamper[stampID].timeStampStart, NULL); //--------------------------------------TIMESTAMPSTART
+	//--------------------------------------------------------------
+
 	stampID++;
 	if (stampID == 50) {
 	    stampID = 0;
 	}
 	SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
+	ACKsPointer->Table[seq] = 0;
+	(ACKsPointer->Missing)++;
+
 	DEBUGMESSAGE(3, YEL
 		"Message: ["
 		RESET
 		" %d "
 		YEL
 		"] Sent     "
-		CYN
+		MAG
 		"ACKs.Missing:["
 		RESET
 		" %d "
-		CYN
-		"]\n"
+		MAG
+		"]"
 		RESET,
 		packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
-	ACKsPointer->Table[seq] = 0;
-	(ACKsPointer->Missing)++;
+
 
 	seq++;
 	bufferSlot++;
@@ -410,10 +421,15 @@ int main(int argc, char* argv[]) {
     int command = 0;
     char c;
     char readstring[MAX_MESSAGE_LENGTH] = "\0";
+
+    // Setup the ACK struct used for tracking ACKS----
     ACKmngr ACKs;
     ACKmngr* ACKsPointer = &ACKs;
-    memset(ACKs.Table, '1', ACK_TABLE_SIZE);
+    for (int y = 0; y < ACK_TABLE_SIZE; y++) {
+	ACKs.Table[y] = 1;
+    }
     ACKs.Missing = 0;
+    //---------------------------------------------
 
     DEBUGMESSAGE(3, "Intializing socket...");
     socket_fd = InitializeSocket();
@@ -427,6 +443,10 @@ int main(int argc, char* argv[]) {
 
     } else if (retval == -1) {// Error. Probably bad.
 
+    }
+    // Round time manager is ready to go
+    if (sem_init(&roundTimeSemaphore, 0, windowSize) == -1) {
+	CRASHWITHERROR("Semaphore roundTimeSemaphore initialization failed in main()");
     }
     usleep(5000);
 
@@ -442,11 +462,11 @@ int main(int argc, char* argv[]) {
     }
     //----------------------------------------------------------------
 
+
     while (KillThreads == 0) {
 	usleep(1000);
-	system("clear"); // Clean up the console
-
-	printf("%s\n", readstring);
+	//system("clear"); // Clean up the console
+	//printf("%s\n", readstring);
 	PrintMenu();
 
 	char* commandBuffer;
@@ -461,6 +481,7 @@ int main(int argc, char* argv[]) {
 	switch (command) {
 	    case 1:
 		LoadMessageFromFile(readstring);
+
 		SlidingWindow(readstring, ACKsPointer); // Send the Message
 		break;
 	    case 2:
