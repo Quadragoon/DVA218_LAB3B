@@ -8,6 +8,8 @@
 #include <string.h>
 #include <netinet/in.h>
 #include <zconf.h>
+#include <sys/stat.h>
+
 #include "common.h"
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
@@ -15,7 +17,101 @@
 #define MIN_ACCEPTED_FRAME_SIZE 100
 #define MAX_ACCEPTED_FRAME_SIZE 65535
 
+#define CONNECTION_STATUS_PENDING 1
+#define CONNECTION_STATUS_ACTIVE 2
+
 int socket_fd;
+
+typedef struct connection connection;
+struct connection
+{
+    in_addr_t address;
+    in_port_t port;
+    byte status;
+    int id;
+
+    connection* next;
+};
+
+connection* connectionList = NULL;
+
+int AddConnection(struct sockaddr_in* address)
+{
+    connection* newConnection;
+    if ((newConnection = malloc(sizeof(connection))) == NULL)
+    {
+        DEBUGMESSAGE(0, "AddConnection malloc() failed");
+        return -1;
+    }
+
+    newConnection->address = address->sin_addr.s_addr;
+    newConnection->port = address->sin_port;
+    newConnection->status = CONNECTION_STATUS_PENDING;
+    newConnection->id = random()%10000000;
+    newConnection->next = NULL;
+
+    connection* lastConnection = connectionList;
+    if (lastConnection == NULL)
+        connectionList = newConnection;
+    else
+    {
+        while (lastConnection->next != NULL)
+            lastConnection = lastConnection->next;
+        lastConnection->next = newConnection;
+    }
+
+    return 1;
+}
+
+connection* FindConnection(in_addr_t address, in_port_t port)
+{
+    connection* lastConnection = connectionList;
+    if (lastConnection == NULL)
+        return NULL;
+
+    while (lastConnection != NULL)
+    {
+        if (lastConnection->address == address && lastConnection->port == port)
+            return lastConnection;
+        lastConnection = lastConnection->next;
+    }
+    return NULL;
+}
+
+int RemoveConnectionByID(int id)
+{
+    connection* lastConnection = connectionList;
+    if (lastConnection == NULL)
+        return 0;
+
+    while (lastConnection->next != NULL)
+    {
+        if (lastConnection->next->id == id)
+        {
+            connection* nextInLine = lastConnection->next->next;
+            memset(lastConnection->next, 0, sizeof(connection));
+            free(lastConnection->next);
+            lastConnection->next = nextInLine;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+FILE* OpenConnectionFile(connection* clientConnection)
+{
+    FILE* file;
+    char* fileName;
+    fileName = malloc(50);
+    mkdir("received", 0777);
+    sprintf(fileName, "./received/%d", clientConnection->id);
+    if ((file = fopen(fileName, "a")) == NULL)
+    {
+        CRASHWITHERROR("Couldn't open file to write");
+    }
+    free(fileName);
+    return file;
+}
 
 int CopyPacket(const packet* src, packet* dest)
 {
@@ -98,6 +194,7 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
             WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK,
                         packetData, sizeof(packetData), packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+            AddConnection(&senderAddress);
         }
         else
         {
@@ -129,42 +226,55 @@ void ReadIncomingMessages()
         ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
         //--------------------------------------------------------------------------JANNE LEKER HÄR--------------------------------------------
         if (packetBuffer.flags == 0)
-        { // Vad använder vi för flagga till datapaket?
-            char Filler[10] = "I hear ya";
-            printf("%s", packetBuffer.data);
+        {
+            connection* clientConnection = FindConnection(senderAddress.sin_addr.s_addr, senderAddress.sin_port);
+            FILE* file;
+            file = OpenConnectionFile(clientConnection);
+            fprintf(file, "%s", packetBuffer.data);
+            fclose(file);
 
             packet packetToSend;
             memset(&packetToSend, 0, sizeof(packet));
-	    //usleep(5000);
-            WritePacket(&packetToSend, PACKETFLAG_ACK, (void*) Filler, 0,
-                        packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
+            WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
+                        packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
         else if (packetBuffer.flags == PACKETFLAG_FIN)
         { // Oh lordy, kill it with fire
-            char Filler[10] = "thank u";
-            printf("%s\n", packetBuffer.data);
+            connection* clientConnection = FindConnection(senderAddress.sin_addr.s_addr, senderAddress.sin_port);
+            FILE* file;
+            file = OpenConnectionFile(clientConnection);
+            fprintf(file, "%s\n", packetBuffer.data);
+            fclose(file);
+            DEBUGMESSAGE(1, "FINished writing to file %d", clientConnection->id);
 
             packet packetToSend;
             memset(&packetToSend, 0, sizeof(packet));
-	    //usleep(5000);
-            WritePacket(&packetToSend, PACKETFLAG_ACK, (void*) Filler, 0,
-                        packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
+            WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
+                        packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
         }
             //--------------------------------------------------------------------------JANNE LEKTE HÄR--------------------------------------------
-        else if (packetBuffer.flags & PACKETFLAG_SYN)
+        else if (packetBuffer.flags == PACKETFLAG_SYN)
         {
             ReceiveConnection(&packetBuffer, senderAddress, senderAddressLength);
         }
+        else if (packetBuffer.flags == PACKETFLAG_ACK)
+        {
+            connection* clientConnection = FindConnection(senderAddress.sin_addr.s_addr, senderAddress.sin_port);
+            if (clientConnection->status == CONNECTION_STATUS_PENDING)
+            {
+                clientConnection->status = CONNECTION_STATUS_ACTIVE;
+            }
+        }
         if (packetBuffer.sequenceNumber == 10E25)
             break; // compiler whines about endless loops without this bit
-
     }
 }
 
 int main(int argc, char* argv[])
 {
+    srandom(time(NULL));
     if (argc == 2)
     {
         debugLevel = strtol(argv[1], NULL, 10);

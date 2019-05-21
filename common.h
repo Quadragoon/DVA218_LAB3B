@@ -20,6 +20,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 
 //-------------------------- A bit of color plz
 #define RED   "\x1B[31m"

@@ -2,7 +2,6 @@
 // Created by quadragoon on 2019-05-06.
 //
 
-#include <time.h>
 #include "common.h"
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
@@ -218,9 +217,6 @@ int WritePacket(packet* packet, uint flags, void* data, unsigned short dataLengt
 
 int ErrorGenerator(packet* packet)
 {
-    time_t t;
-    srandom((unsigned) time(&t));
-
     byte* packetBytes = (byte*) packet;
     unsigned int numBytesInPacket = PACKET_HEADER_LENGTH + packet->dataLength;
 
