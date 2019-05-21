@@ -135,7 +135,7 @@ void ReadIncomingMessages()
 
             packet packetToSend;
             memset(&packetToSend, 0, sizeof(packet));
-	    usleep(5000);
+	    //usleep(5000);
             WritePacket(&packetToSend, PACKETFLAG_ACK, (void*) Filler, 0,
                         packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
@@ -147,7 +147,7 @@ void ReadIncomingMessages()
 
             packet packetToSend;
             memset(&packetToSend, 0, sizeof(packet));
-	    usleep(5000);
+	    //usleep(5000);
             WritePacket(&packetToSend, PACKETFLAG_ACK, (void*) Filler, 0,
                         packetBuffer.sequenceNumber); //------What data to send with the ACK? any?
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);

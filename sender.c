@@ -215,7 +215,7 @@ void* ReadPackets(ACKmngr* ACKsPointer)
 void PrintMenu()
 {
     printf(YEL"--------------------------\n"RESET);
-    printf(YEL"Welcome!\n"RESET);
+    printf(YEL"Welcome!  "RESET YEL"\nRoundtime set to"RESET" %.0f"YEL"us\n"RESET, roundTime);
     printf(YEL"--------------------------\n"RESET);
     printf(CYN"[ "RESET"1"CYN" ]: Send Message\n"RESET);
     printf(MAG"[ "RESET"2"MAG" ]: Preview Message\n"RESET);
@@ -286,6 +286,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     float messagedivided = 0;
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
+    int sentMessages = 0;
 
     int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
@@ -316,37 +317,38 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 
     for (int i = 0; i < packets; i++)
     {
-        if (seq < windowSize)
+        if (sentMessages < windowSize)
         {
             DEBUGMESSAGE_NONEWLINE(5, YELTEXT("Sending:"));
             int trackPackData = 0;
             for (int u = MessageTracker; u < (frameSize + MessageTracker); u++)
             { // Fill up the outgoing packet with data
-                packetsToSend[seq].data[trackPackData] = readstring[u];
-                //printf("%c", packetsToSend[seq].data[trackPackData]);
+                packetsToSend[sentMessages].data[trackPackData] = readstring[u];
+                //printf("%c", packetsToSend[sentMessages].data[trackPackData]);
                 trackPackData++;
             }
-            packetsToSend[seq].sequenceNumber = seq; // Set the packet sequence number
+            packetsToSend[sentMessages].sequenceNumber = seq; // Set the packet sequence number
+	    //printf("--------------------------------------\npacketsToSend[sentMessages].sequenceNumber :[ %d ]         seq: [ %d ]      sentMessages: [ %d ]\n", packetsToSend[sentMessages].sequenceNumber, seq, sentMessages);
             DEBUGMESSAGE(3, GRNTEXT("\n Sending Packet:[")
                     " %d "
                     GRNTEXT("]   seq:[")
                     " %d "
-                    GRNTEXT("]\n"), packetsToSend[seq].sequenceNumber, seq);
+                    GRNTEXT("]\n"), packetsToSend[sentMessages].sequenceNumber, seq);
             DEBUGMESSAGE(5, GRNTEXT("\n MessageTracker:[")
                     " %d "
                     GRNTEXT("]"), MessageTracker);
 
             if (i == packets - 1)
             {
-                WritePacket(&(packetsToSend[seq]), PACKETFLAG_FIN, (void*) (packetsToSend[seq].data), frameSize, seq);
+                WritePacket(&(packetsToSend[sentMessages]), PACKETFLAG_FIN, (void*) (packetsToSend[sentMessages].data), frameSize, seq);
             }
             else
             {
-                WritePacket(&(packetsToSend[seq]), 0, (void*) (packetsToSend[seq].data), frameSize, seq);
+                WritePacket(&(packetsToSend[sentMessages]), 0, (void*) (packetsToSend[sentMessages].data), frameSize, seq);
             }
 
-            SendPacket(socket_fd, &(packetsToSend[seq]), &receiverAddress, receiverAddressLength);
-
+            SendPacket(socket_fd, &(packetsToSend[sentMessages]), &receiverAddress, receiverAddressLength);
+	    printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET, packetsToSend[sentMessages].sequenceNumber, ACKsPointer->Missing);
             ACKsPointer->Table[seq] = 0;
             (ACKsPointer->Missing)++;
 
@@ -363,15 +365,16 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
             pthread_create(&thread, NULL, (void*) ThreadedTimeout, (void*) &timeoutData);*/
 
             seq++;
+	    sentMessages++;
             MessageTracker += frameSize;
-            printf("Message: [ %d ] Sent     ACKs.Missing:[ %d ]\n", packetsToSend[seq].sequenceNumber, ACKsPointer->Missing);
+            
         }
         else
         {
             i--;
             if (ACKsPointer->Missing == 0)
             {
-                seq = 0;
+                sentMessages = 0;
             }
         }
 
@@ -405,7 +408,9 @@ int main(int argc, char* argv[])
 
     // Create the thread checking for messages from the receiver------
     pthread_t thread; //Thread ID
-    pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer);
+    if(pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer) != 0){
+	CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
+    }
     //----------------------------------------------------------------
 
 
@@ -417,7 +422,6 @@ int main(int argc, char* argv[])
         usleep(1000);
         system("clear"); // Clean up the console
 	
-	printf("roundTime set to: [ %f ] us\n", roundTime);
         printf("%s\n", readstring);
         PrintMenu();
 
