@@ -59,7 +59,7 @@ int lowestSequenceAwaited = -1;
 
 int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned short desiredFrameSize)
 {
-    DEBUGMESSAGE(5, "Negotiating connection");
+    DEBUGMESSAGE(3, "Negotiating connection");
     struct timeval timeStamp1, timeStamp2;
 
     // memset used to make sure that the address fields are filled with '0's
@@ -161,7 +161,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                          suggestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE)
                 {
                     DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
-                    DEBUGMESSAGE(4, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
+                    DEBUGMESSAGE(3, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
                                  suggestedWindowSize, suggestedFrameSize);
                     return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
                 }
@@ -200,31 +200,41 @@ float roundTimeManager(int time)
     float lastReportedRoundTime = 0;
     int i = 0;
     int divider = 0;
-    
-    while(KillThreads == 0)
+
+    while (KillThreads == 0)
     {
-	for(int a = 0; a < windowSize; a++){
-	    if(roundTime != lastReportedRoundTime)
-	    {
-		roundTimeTable[i] = roundTime;
-		i++;
-		if(i == BASE_AVERAGE)
-		{
-		    i = 0;
-		}
-		for(int u = 0; u < BASE_AVERAGE; u++){
-		    if(roundTimeTable[u] != 0){
-			divider++;
-			averageRoundTime += roundTimeTable[u];
-		    }
-		}
-		if(divider > 0){
-		    averageRoundTime = (averageRoundTime/divider);
-		    divider = 0;
-		    DEBUGMESSAGE_EXACT(20, CYN"averageRoundTime set to: ["RESET" %f "CYN"]\n"RESET, averageRoundTime);
-		}
-	    }
-	}
+        for (int a = 0; a < windowSize; a++)
+        {
+            if (roundTime != lastReportedRoundTime)
+            {
+                roundTimeTable[i] = roundTime;
+                i++;
+                if (i == BASE_AVERAGE)
+                {
+                    i = 0;
+                }
+                for (int u = 0; u < BASE_AVERAGE; u++)
+                {
+                    if (roundTimeTable[u] != 0)
+                    {
+                        divider++;
+                        averageRoundTime += roundTimeTable[u];
+                    }
+                }
+                if (divider > 0)
+                {
+                    averageRoundTime = (averageRoundTime / divider);
+                    divider = 0;
+                    DEBUGMESSAGE_EXACT(20, CYN
+                            "averageRoundTime set to: ["
+                            RESET
+                            " %f "
+                            CYN
+                            "]\n"
+                            RESET, averageRoundTime);
+                }
+            }
+        }
     }
     KillThreads = 1;
     pthread_exit(NULL);
@@ -235,7 +245,7 @@ float roundTimeManager(int time)
 
 void* ReadPackets(ACKmngr* ACKsPointer)
 {
-    DEBUGMESSAGE(2, "ReadPackets thread running\n");
+    DEBUGMESSAGE(3, "ReadPackets thread running\n");
 
     packet packetBuffer;
     unsigned int senderAddressLength = sizeof(senderAddress);
@@ -260,13 +270,13 @@ void* ReadPackets(ACKmngr* ACKsPointer)
 
             while (ACKsPointer->Table[lowestSequenceAwaited] == 1)
             {
-            sem_post(&windowSemaphore);
+                sem_post(&windowSemaphore);
                 if (lowestSequenceAwaited == 65535)
                     lowestSequenceAwaited = 0;
                 else
                     lowestSequenceAwaited++;
             }
-            printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
+            DEBUGMESSAGE(3, "ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
         }
         // TODO: Look for FINs here
     }
@@ -316,7 +326,7 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH])
     }
     else
     {
-        DEBUGMESSAGE(1, YELTEXT("\n -Couldn't open file 'message'- "));
+        DEBUGMESSAGE(0, YELTEXT("\n -Couldn't open file 'message'- "));
     }
 }
 
@@ -329,7 +339,7 @@ int ThreadedTimeout(timeoutHandlerData* timeoutData)
     int numPreviousTimeouts = timeoutData->numPreviousTimeouts;
     int sequenceNumber = timeoutData->sequenceNumber;
     packet* packetsToSend = timeoutData->packetsToSend;
-    DEBUGMESSAGE(2, "ThreadedTimeout for seq %d started", sequenceNumber);
+    DEBUGMESSAGE(3, "ThreadedTimeout for seq %d started", sequenceNumber);
 
     sleep(TIMEOUT_DELAY);
     while (ACKsPointer->Table[sequenceNumber] == 0 || numPreviousTimeouts >= MAX_TIMEOUT_RETRIES)
@@ -339,9 +349,7 @@ int ThreadedTimeout(timeoutHandlerData* timeoutData)
         sleep(TIMEOUT_DELAY);
     }
 
-    DEBUGMESSAGE(0, "About to exit out of a thread!");
     free(timeoutData);
-    DEBUGMESSAGE(0, "Memory freed");
     return numPreviousTimeouts;
 }
 //---------------------------------------------------------------------------------------------------------------
@@ -360,13 +368,13 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     int messageLength = strlen(readstring);
     messageDivided = (float) messageLength / (float) frameSize;
     packets = ceil((double) messageDivided);
-    DEBUGMESSAGE(4, GRNTEXT("Message is [")
+    DEBUGMESSAGE(3, GRNTEXT("Message is [")
             " %d "
             GRNTEXT("] symbols long"), messageLength);
-    DEBUGMESSAGE(4, GRNTEXT("Will split over [%.2f] rounded to [")
+    DEBUGMESSAGE(3, GRNTEXT("Will split over [%.2f] rounded to [")
             " %d "
             GRNTEXT("] packets"), messageDivided, packets);
-    DEBUGMESSAGE(4, YELTEXT("WindowSize is [")
+    DEBUGMESSAGE(3, YELTEXT("WindowSize is [")
             " %d "
             YELTEXT("] frames"), windowSize);
 
@@ -388,7 +396,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
         if (bufferSlot == windowSize)
             bufferSlot = 0; // if the condition is met, we would try to write outside our buffer. No good! Loop around!
 
-        DEBUGMESSAGE_NONEWLINE(5, YELTEXT("Sending:"));
         for (int j = messageTracker; j < (frameSize + messageTracker); j++)
         { // Fill up the outgoing packet with data
             packetsToSend[bufferSlot].data[j - messageTracker] = readstring[j];
@@ -407,7 +414,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
                 GRNTEXT("]   seq:[")
                 " %d "
                 GRNTEXT("]\n"), packetsToSend[bufferSlot].sequenceNumber, seq);
-        DEBUGMESSAGE(5, GRNTEXT("\n messageTracker:[")
+        DEBUGMESSAGE(3, GRNTEXT("\n messageTracker:[")
                 " %d "
                 GRNTEXT("]"), messageTracker);
 	
@@ -418,8 +425,20 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 	    stampID = 0;
 	}
         SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
-        printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET,
-               packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
+        DEBUGMESSAGE(3, YEL
+                "Message: ["
+                RESET
+                " %d "
+                YEL
+                "] Sent     "
+                CYN
+                "ACKs.Missing:["
+                RESET
+                " %d "
+                CYN
+                "]\n"
+                RESET,
+                     packetsToSend[bufferSlot].sequenceNumber, ACKsPointer->Missing);
         ACKsPointer->Table[seq] = 0;
         (ACKsPointer->Missing)++;
 
@@ -444,7 +463,7 @@ int main(int argc, char* argv[])
     memset(ACKs.Table, '1', ACK_TABLE_SIZE);
     ACKs.Missing = 0;
 
-    DEBUGMESSAGE(5, "Intializing socket...");
+    DEBUGMESSAGE(3, "Intializing socket...");
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
     int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
