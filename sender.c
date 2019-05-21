@@ -6,7 +6,12 @@
  * Instructions: 
  * Run through a linux terminal from the folder containing the compiled file. 
  * (while the receiver app is already running), using the command './sender X' where 'X' is the debug level 
- * Debug Level:( from '0' -[Just about nothing] to '4' -[I heard that you want to print every last byte!])
+ * Debug Level:( from '0' -[Just about nothing] to '5' -[more] 
+ * Specific debug modes are: 
+ * Checksum calculation:------------------------------------- 15   
+ * Roundtime, average time for sending / ACKing packets:----- 20    
+ * Error generator:------------------------------------------ 25   
+ * Reading packets from the receiver:------------------------ 30
  * 
  * Description: 
  * Request connection to the receiver, send messages entered by the user while simultaneously
@@ -31,7 +36,7 @@ int socket_fd;
 unsigned short sequence = 0;
 int KillThreads = 0;
 byte windowSize = 4;
-unsigned short frameSize = 1000;
+unsigned short frameSize = 500;
 float roundTime = 0;
 float averageRoundTime = 0;
 struct roundTimeHandler timeStamper[50];
@@ -243,6 +248,18 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 	    break;
 	}
 	if (packetBuffer.flags == PACKETFLAG_ACK) {
+	    
+	    ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
+	    
+	    //-------------------------------------------- Updating the Missing ACKS
+	    MissingACKS = 0;
+	    for (int y = 0; y < ACK_TABLE_SIZE; y++) {
+		if (ACKsPointer->Table[y] == 0) {
+		    MissingACKS++;
+		}
+		ACKsPointer->Missing = MissingACKS;
+	    }
+	    DEBUGMESSAGE_EXACT(DEBUGLEVEL_READPACKETS, CYN"ACK: ["RESET" %d "CYN"] Received     ACKs.Missing:["RESET" %d "CYN"]\n"RESET, packetBuffer.sequenceNumber, ACKsPointer->Missing);
 	    //-------------------------------------------- Updating the roundTime
 	    for (int i = 0; i < 50; i++) {
 		if (timeStamper[i].sequence == packetBuffer.sequenceNumber) {
@@ -253,9 +270,6 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 	    }
 	    //--------------------------------------------
 
-	    ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
-	    //(ACKsPointer->Missing)--;
-
 	    while (ACKsPointer->Table[lowestSequenceAwaited] == 1) {
 		sem_post(&windowSemaphore);
 		if (lowestSequenceAwaited == 65535)
@@ -263,14 +277,7 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 		else
 		    lowestSequenceAwaited++;
 	    }
-	    MissingACKS = 0;
-	    for (int y = 0; y < ACK_TABLE_SIZE; y++) {
-		if (ACKsPointer->Table[y] == 0) {
-		    MissingACKS++;
-		}
-		ACKsPointer->Missing = MissingACKS;
-	    }
-	    DEBUGMESSAGE(3, "ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
+	    
 	}
 	else if (packetBuffer.flags == PACKETFLAG_FIN) 
 	{
@@ -364,6 +371,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
     int stampID = 0;
+    int MissingACKS = 0;
 
     int messageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
@@ -425,7 +433,8 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 	    stampID = 0;
 	}
 	SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
-	ACKsPointer->Table[seq] = 0;
+	
+	ACKsPointer->Table[seq] = 0; 
 	(ACKsPointer->Missing)++;
 
 	DEBUGMESSAGE(3, YEL
