@@ -209,10 +209,10 @@ float roundTimeManager() {
 		}
 		lastReportedRoundTime = roundTime;
 	    } else {
-		DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, ".");
-		//usleep(100);
+		DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN"."RESET);
 	    }
 	}
+	DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, "\n");
     }
 
 
@@ -515,7 +515,7 @@ int main(int argc, char* argv[]) {
 
 	scanf("%s", commandBuffer);
 	command = strtol(commandBuffer, NULL, 10); // Get a command from the user
-	while ((c = getchar()) != '\n' && c != EOF); //Rensar läsbufferten
+	while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
 
 	switch (command) {
 	    case 1:
