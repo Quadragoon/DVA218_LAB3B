@@ -39,6 +39,7 @@ struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
 
 sem_t windowSemaphore;
+int lowestSequenceAwaited = -1;
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
@@ -246,7 +247,15 @@ void* ReadPackets(ACKmngr* ACKsPointer)
         {
             ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
             (ACKsPointer->Missing)--;
+
+            while (ACKsPointer->Table[lowestSequenceAwaited] == 1)
+            {
             sem_post(&windowSemaphore);
+                if (lowestSequenceAwaited == 65535)
+                    lowestSequenceAwaited = 0;
+                else
+                    lowestSequenceAwaited++;
+            }
             printf("ACK: [ %d ] Received     ACKs.Missing:[ %d ]\n", packetBuffer.sequenceNumber, ACKsPointer->Missing);
         }
         // TODO: Look for FINs here
@@ -334,7 +343,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     int packets = 0;
     int seq = 0; // Keeps track of what frame the sliding window is currently managing
 
-    int MessageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
+    int messageTracker = 0; // Tracks where we are located in the message that is currently being chopped up.
 
     // Figure out how many packets we need to send
     int messageLength = strlen(readstring);
@@ -350,8 +359,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
             " %d "
             YELTEXT("] frames"), windowSize);
 
-    // TODO: Implement 'Send Message' to receiver, properly ----------- //
-
     unsigned int receiverAddressLength = sizeof(receiverAddress);
 
     packet* packetsToSend;
@@ -366,30 +373,32 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
     for (int i = 0; i < packets; i++)
     {
         sem_wait(&windowSemaphore);
+
+        if (bufferSlot == windowSize)
+            bufferSlot = 0; // if the condition is met, we would try to write outside our buffer. No good! Loop around!
+
         DEBUGMESSAGE_NONEWLINE(5, YELTEXT("Sending:"));
-        for (int j = MessageTracker; j < (frameSize + MessageTracker); j++)
+        for (int j = messageTracker; j < (frameSize + messageTracker); j++)
         { // Fill up the outgoing packet with data
-            packetsToSend[bufferSlot].data[j - MessageTracker] = readstring[j];
+            packetsToSend[bufferSlot].data[j - messageTracker] = readstring[j];
         }
-        //printf("--------------------------------------\npacketsToSend[sentMessages].sequenceNumber :[ %d ]         seq: [ %d ]      sentMessages: [ %d ]\n", packetsToSend[sentMessages].sequenceNumber, seq, sentMessages);
+
+        if (lowestSequenceAwaited == -1)
+            lowestSequenceAwaited = seq;
 
         if (i == packets - 1)
-        {
             WritePacket(&(packetsToSend[bufferSlot]), PACKETFLAG_FIN, (void*) (packetsToSend[bufferSlot].data), frameSize, seq);
-        }
         else
-        {
             WritePacket(&(packetsToSend[bufferSlot]), 0, (void*) (packetsToSend[bufferSlot].data), frameSize, seq);
-        }
 
         DEBUGMESSAGE(3, GRNTEXT("\n Sending Packet:[")
                 " %d "
                 GRNTEXT("]   seq:[")
                 " %d "
                 GRNTEXT("]\n"), packetsToSend[bufferSlot].sequenceNumber, seq);
-        DEBUGMESSAGE(5, GRNTEXT("\n MessageTracker:[")
+        DEBUGMESSAGE(5, GRNTEXT("\n messageTracker:[")
                 " %d "
-                GRNTEXT("]"), MessageTracker);
+                GRNTEXT("]"), messageTracker);
 
         SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
         printf(YEL"Message: ["RESET" %d "YEL"] Sent     "CYN"ACKs.Missing:["RESET" %d "CYN"]\n"RESET,
@@ -399,12 +408,9 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 
         seq++;
         bufferSlot++;
-        MessageTracker += frameSize;
+        messageTracker += frameSize;
     }
-
-    //usleep(300000);
 }
-
 //---------------------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[])
@@ -433,7 +439,7 @@ int main(int argc, char* argv[])
         }
     }
     else if (retval == 0)
-    {// Error, but probably incorrect parameters entered
+    {// Error, but probably because incorrect parameters were entered
 
     }
     else if (retval == -1)
