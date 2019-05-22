@@ -248,9 +248,9 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 	    break;
 	}
 	if (packetBuffer.flags == PACKETFLAG_ACK) {
-	    
+
 	    ACKsPointer->Table[packetBuffer.sequenceNumber] = 1;
-	    
+
 	    //-------------------------------------------- Updating the Missing ACKS
 	    MissingACKS = 0;
 	    for (int y = 0; y < ACK_TABLE_SIZE; y++) {
@@ -277,10 +277,8 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 		else
 		    lowestSequenceAwaited++;
 	    }
-	    
-	}
-	else if (packetBuffer.flags == PACKETFLAG_FIN) 
-	{
+
+	} else if (packetBuffer.flags == PACKETFLAG_FIN) {
 	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
 	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
 	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
@@ -289,7 +287,7 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 	    printf(RED"------------ReadPackets thread shutting down------------\n"RESET);
 	    usleep(1000);
 	    pthread_exit(NULL);
-	    break;	
+	    break;
 	}
 
     }
@@ -308,8 +306,9 @@ void PrintMenu() {
     printf(YEL"--------------------------\n"RESET);
     printf(YEL"Welcome!  "RESET YEL"\n[%d] Roundtime Average"RESET" %.0f"YEL"us\n"RESET, averageRoundTime, roundTimeSemCounter);
     printf(YEL"--------------------------\n"RESET);
-    printf(CYN"[ "RESET"1"CYN" ]: Send Message\n"RESET);
-    printf(MAG"[ "RESET"2"MAG" ]: Preview Message\n"RESET);
+    printf(GRN"[ "RESET"1"GRN" ]: Connect to Receiver\n"RESET);
+    printf(CYN"[ "RESET"2"CYN" ]: Send Message\n"RESET);
+    printf(MAG"[ "RESET"3"MAG" ]: Preview Message\n"RESET);
     printf(RED"[ "RESET"2049"RED" ]: End program\n"RESET);
     printf(YEL"--------------------------\n"RESET);
 }
@@ -433,8 +432,8 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 	    stampID = 0;
 	}
 	SendPacket(socket_fd, &(packetsToSend[bufferSlot]), &receiverAddress, receiverAddressLength);
-	
-	ACKsPointer->Table[seq] = 0; 
+
+	ACKsPointer->Table[seq] = 0;
 	(ACKsPointer->Missing)++;
 
 	DEBUGMESSAGE(3, YEL
@@ -482,33 +481,7 @@ int main(int argc, char* argv[]) {
     DEBUGMESSAGE(3, "Intializing socket...");
     socket_fd = InitializeSocket();
     DEBUGMESSAGE(1, "Socket setup successfully.");
-    int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
-    if (retval == 1) {// Connection successful!
-	if (sem_init(&windowSemaphore, 0, windowSize) == -1) {
-	    CRASHWITHERROR("Semaphore initialization failed");
-	}
-    } else if (retval == 0) {// Error, but probably because incorrect parameters were entered
 
-    } else if (retval == -1) {// Error. Probably bad.
-
-    }
-    // Round time manager is ready to go
-    if (sem_init(&roundTimeSemaphore, 0, windowSize) == -1) {
-	CRASHWITHERROR("Semaphore roundTimeSemaphore initialization failed in main()");
-    }
-    usleep(5000);
-
-    // Create the thread checking for messages from the receiver------
-    pthread_t thread; //Thread ID
-    if (pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer) != 0) {
-	CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
-    }
-    //----------------------------------------------------------------
-    // Create the thread managing the average roundtime calculation------
-    if (pthread_create(&thread, NULL, (void*) roundTimeManager, NULL) != 0) {
-	CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
-    }
-    //----------------------------------------------------------------
 
 
     while (KillThreads == 0) {
@@ -522,6 +495,10 @@ int main(int argc, char* argv[]) {
 	    CRASHWITHERROR("commandBuffer malloc failed");
 	}
 
+	if (sem_init(&roundTimeSemaphore, 0, windowSize) == -1) {
+	    CRASHWITHERROR("Semaphore roundTimeSemaphore initialization failed in main()");
+	}
+
 	scanf("%s", commandBuffer);
 	command = strtol(commandBuffer, NULL, 10); // Get a command from the user
 	while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
@@ -529,10 +506,49 @@ int main(int argc, char* argv[]) {
 	switch (command) {
 	    case 1:
 		system("clear"); // Clean up the console
-		LoadMessageFromFile(readstring);
-		SlidingWindow(readstring, ACKsPointer); // Send the Message
+		int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
+		if (retval == 1) {// Connection successful!
+		    if (sem_init(&windowSemaphore, 0, windowSize) == -1) {
+			CRASHWITHERROR("Semaphore initialization failed");
+		    }
+		} else if (retval == 0) {// Error, but probably because incorrect parameters were entered
+
+		} else if (retval == -1) {// Error. Probably bad.
+
+		}
+		printf(GRN"Connection to Receiver Established!\n"RESET);
+
+		usleep(5000);
 		break;
 	    case 2:
+		system("clear"); // Clean up the console
+		// Create the thread checking for messages from the receiver------
+		printf(YEL"Setting up ReadPackets thread..."RESET);
+		pthread_t thread; //Thread ID
+		if (pthread_create(&thread, NULL, (void*) ReadPackets, ACKsPointer) != 0) {
+		    CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
+		}
+		usleep(5000);
+		printf(GRN"Done!\n"RESET);
+		//----------------------------------------------------------------
+		// Create the thread managing the average roundtime calculation------
+		printf(YEL"Setting up roundTimeManager thread..."RESET);
+		if (pthread_create(&thread, NULL, (void*) roundTimeManager, NULL) != 0) {
+		    CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
+		}
+		usleep(5000);
+		printf(GRN"Done!\n"RESET);
+		//----------------------------------------------------------------
+		usleep(5000);
+		printf(YEL"Reading message from file..."RESET);
+		LoadMessageFromFile(readstring);
+		usleep(5000);
+		printf(GRN"Done!\n"RESET);
+		printf(YEL"Sending message!..."RESET);
+		SlidingWindow(readstring, ACKsPointer); // Send the Message
+		sleep(1);
+		break;
+	    case 3:
 		LoadMessageFromFile(readstring);
 		printf("%s\n", readstring);
 		// Just sending the user back to the start of the while loop
