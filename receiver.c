@@ -223,52 +223,55 @@ void ReadIncomingMessages()
 
     while (1)
     {
-        ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
-        //--------------------------------------------------------------------------JANNE LEKER HÄR--------------------------------------------
-        if (packetBuffer.flags == 0)
+        int retval = 0;
+        retval = ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength);
+        if (retval > 0)
         {
-            connection* clientConnection = FindConnection(&senderAddress);
-            FILE* file;
-            file = OpenConnectionFile(clientConnection);
-            fprintf(file, "%s", packetBuffer.data);
-            fclose(file);
-
-            packet packetToSend;
-            memset(&packetToSend, 0, sizeof(packet));
-            WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
-                        packetBuffer.sequenceNumber);
-            SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
-        }
-        else if (packetBuffer.flags == PACKETFLAG_FIN)
-        { // Oh lordy, kill it with fire
-            connection* clientConnection = FindConnection(&senderAddress);
-            FILE* file;
-            file = OpenConnectionFile(clientConnection);
-            fprintf(file, "%s\n", packetBuffer.data);
-            fclose(file);
-            DEBUGMESSAGE(1, "FINished writing to file %d", clientConnection->id);
-
-            packet packetToSend;
-            memset(&packetToSend, 0, sizeof(packet));
-            WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
-                        packetBuffer.sequenceNumber);
-            SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
-        }
-            //--------------------------------------------------------------------------JANNE LEKTE HÄR--------------------------------------------
-        else if (packetBuffer.flags == PACKETFLAG_SYN)
-        {
-            ReceiveConnection(&packetBuffer, senderAddress, senderAddressLength);
-        }
-        else if (packetBuffer.flags == PACKETFLAG_ACK)
-        {
-            connection* clientConnection = FindConnection(&senderAddress);
-            if (clientConnection->status == CONNECTION_STATUS_PENDING)
+            if (packetBuffer.flags == 0)
             {
-                clientConnection->status = CONNECTION_STATUS_ACTIVE;
+                connection* clientConnection = FindConnection(&senderAddress);
+                FILE* file;
+                file = OpenConnectionFile(clientConnection);
+                fprintf(file, "%s", packetBuffer.data);
+                fclose(file);
+
+                packet packetToSend;
+                memset(&packetToSend, 0, sizeof(packet));
+                WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
+                            packetBuffer.sequenceNumber);
+                SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
             }
+            else if (packetBuffer.flags == PACKETFLAG_FIN)
+            { // Oh lordy, kill it with fire
+                connection* clientConnection = FindConnection(&senderAddress);
+                FILE* file;
+                file = OpenConnectionFile(clientConnection);
+                fprintf(file, "%s\n", packetBuffer.data);
+                fclose(file);
+                DEBUGMESSAGE(1, "FINished writing to file %d", clientConnection->id);
+
+                packet packetToSend;
+                memset(&packetToSend, 0, sizeof(packet));
+                WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
+                            packetBuffer.sequenceNumber);
+                SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+            }
+                //--------------------------------------------------------------------------JANNE LEKTE HÄR--------------------------------------------
+            else if (packetBuffer.flags == PACKETFLAG_SYN)
+            {
+                ReceiveConnection(&packetBuffer, senderAddress, senderAddressLength);
+            }
+            else if (packetBuffer.flags == PACKETFLAG_ACK)
+            {
+                connection* clientConnection = FindConnection(&senderAddress);
+                if (clientConnection->status == CONNECTION_STATUS_PENDING)
+                {
+                    clientConnection->status = CONNECTION_STATUS_ACTIVE;
+                }
+            }
+            if (packetBuffer.sequenceNumber == 10E25)
+                break; // compiler whines about endless loops without this bit
         }
-        if (packetBuffer.sequenceNumber == 10E25)
-            break; // compiler whines about endless loops without this bit
     }
 }
 

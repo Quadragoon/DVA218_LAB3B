@@ -547,7 +547,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
             stampID = 0;
         }
         sem_wait(&ackSemaphore);
-        SendPacket(socket_fd, packetToSend, &receiverAddress, receiverAddressLength);
 
         timeoutHandlerData* timeoutHandler;
         if ((timeoutHandler = malloc(sizeof(timeoutHandlerData))) == NULL)
@@ -562,6 +561,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
 
         pthread_t timeoutThread;
         pthread_create(&timeoutThread, NULL, (void*) ThreadedTimeout, timeoutHandler);
+        SendPacket(socket_fd, packetToSend, &receiverAddress, receiverAddressLength);
 
         ACKsPointer->Table[seq] = 0;
         (ACKsPointer->Missing)++;
