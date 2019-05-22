@@ -42,7 +42,7 @@
 //----------------------------------------------
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
-//#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
+#define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
 extern int debugLevel;
 #define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");} (1==1)

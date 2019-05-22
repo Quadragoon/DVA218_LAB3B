@@ -424,13 +424,7 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
         sleep(TIMEOUT_DELAY);
     }
 
-    DEBUGMESSAGE_NONEWLINE(3, MAG
-            "-Timeout thread ["
-            RESET
-            " %d "
-            MAG
-            "] Exit-\n"
-            RESET, sequenceNumber);
+    DEBUGMESSAGE_NONEWLINE(3, MAG"-Timeout thread ["RESET" %d "MAG"] Exit-"RESET"\n", sequenceNumber);
     pthread_exit(NULL);
 }
 
@@ -623,27 +617,42 @@ int main(int argc, char* argv[])
         {
             case 1:
                 system("clear"); // Clean up the console
-                connectionStatus = 0; // connectionStatus set to "pending"
-                int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
-                if (retval == 1)
-                {// Connection successful!
-                    connectionStatus = 1; // connectionStatus set to "connected"
-                    if (sem_init(&windowSemaphore, 0, windowSize) == -1)
-                    {
-                        CRASHWITHERROR("Semaphore initialization failed");
+                if (connectionStatus == -1)
+                {
+                    connectionStatus = 0; // connectionStatus set to "pending"
+                    int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
+                    if (retval == 1)
+                    {// Connection successful!
+                        connectionStatus = 1; // connectionStatus set to "connected"
+                        if (sem_init(&windowSemaphore, 0, windowSize) == -1)
+                        {
+                            CRASHWITHERROR("Semaphore initialization failed");
+                        }
                     }
-                }
-                else if (retval == 0)
-                {// Error, but probably because incorrect parameters were entered
-                    connectionStatus = -1;
-                }
-                else if (retval == -1)
-                {// Error. Probably bad.
-                    connectionStatus = -1;
-                }
-                printf(GRN"Connection to Receiver Established!\n"RESET);
+                    else if (retval == 0)
+                    {// Error, but probably because incorrect parameters were entered
+                        connectionStatus = -1;
+                    }
+                    else if (retval == -1)
+                    {// Error. Probably bad.
+                        connectionStatus = -1;
+                    }
+                    printf(GRN"Connection to Receiver Established!\n"RESET);
 
-                usleep(5000);
+                    usleep(5000);
+                }
+                else if (connectionStatus == 1)
+                {
+                    DEBUGMESSAGE(0, "Error: already connected!");
+                }
+                else if (connectionStatus == 0)
+                {
+                    DEBUGMESSAGE(0, "Error: connection status is 'pending'. Something wrong?");
+                }
+                else
+                {
+                    CRASHWITHMESSAGE("Connection status undefined when calling NegotiateConnection()! Weird stuff!");
+                }
                 break;
             case 2:
                 if (connectionStatus == 1)
@@ -688,16 +697,16 @@ int main(int argc, char* argv[])
                 // Just sending the user back to the start of the while loop
                 break;
             case 2049:
-                (1 == 1);
+                1;
                 unsigned int receiverAddressLength = sizeof(receiverAddress);
                 packet* endGame;
                 endGame = malloc(sizeof(packet) * (windowSize + 1));
-                strcpy(endGame->data, "byeybe");
+                //strcpy(endGame->data, "byeybe");
                 if (endGame == NULL)
                 {
                     CRASHWITHERROR("malloc() for packetsToSend in SlidingWindow() failed");
                 }
-                WritePacket(endGame, PACKETFLAG_FIN, (void*) (endGame->data), frameSize, 1);
+                WritePacket(endGame, PACKETFLAG_FIN, "byebye", frameSize, 1);
                 SendPacket(socket_fd, endGame, &receiverAddress, receiverAddressLength);
                 system("clear");
                 KillThreads = 1; // Make sure that we let the other threads know that we are closing down the client
