@@ -93,8 +93,9 @@ struct ACKmngr
 typedef struct timeoutHandlerData timeoutHandlerData;
 struct timeoutHandlerData
 {
-    packet* packetsToSend;
+    packet* dataBufferArray;
     ACKmngr* ACKsPointer;
+    byte flags;
     int sequenceNumber;
     int bufferSlot;
 };
