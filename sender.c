@@ -410,7 +410,7 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
     packet* packetsToSend = timeoutData->packetsToSend;
     int bufferSlot = timeoutData->bufferSlot;
     free(timeoutData);
-
+    
     int numPreviousTimeouts = 0;
 
     DEBUGMESSAGE(3, "ThreadedTimeout for seq %d started", sequenceNumber);
@@ -423,7 +423,7 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
         sleep(TIMEOUT_DELAY);
     }
 
-    DEBUGMESSAGE(3, RED"------------ThreadedTimeout thread shutting down------------"RESET);
+    DEBUGMESSAGE_NONEWLINE(3, MAG"-Timeout thread ["RESET" %d "MAG"] Exit-\n"RESET, sequenceNumber);
     pthread_exit(NULL);
 }
 
