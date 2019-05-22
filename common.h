@@ -66,6 +66,7 @@ extern int debugLevel;
 
 #define ACK_TABLE_SIZE 2000
 
+typedef struct packet packet;
 struct packet
 {
     byte flags;
@@ -75,31 +76,30 @@ struct packet
     unsigned short checksum;
     byte data[DATA_BUFFER_SIZE];
 };
-typedef struct packet packet;
 
+typedef struct ACKmngr ACKmngr;
 struct ACKmngr
 {
     int Missing; // Keeps track of how many ACKs are still unaccounted for
     int Table[ACK_TABLE_SIZE];
 };
-typedef struct ACKmngr ACKmngr;
 
+typedef struct timeoutHandlerData timeoutHandlerData;
 struct timeoutHandlerData
 {
     packet* packetsToSend;
     ACKmngr* ACKsPointer;
     int sequenceNumber;
-    int numPreviousTimeouts;
+    int bufferSlot;
 };
-typedef struct timeoutHandlerData timeoutHandlerData;
 
+typedef struct roundTimeHandler roundTimeHandler;
 struct roundTimeHandler
 {
     struct timeval timeStampStart;
     struct timeval timeStampEnd;
     unsigned int sequence;
 };
-typedef struct roundTimeHandler roundTimeHandler;
 
 int InitializeSocket();
 //ssize_t SendMessage(int socket_fd, const char* dataBuffer, int length, const struct sockaddr_in* receiverAddress, unsigned int addressLength);

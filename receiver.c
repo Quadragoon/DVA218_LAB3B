@@ -20,8 +20,6 @@
 #define CONNECTION_STATUS_PENDING 1
 #define CONNECTION_STATUS_ACTIVE 2
 
-int socket_fd;
-
 typedef struct connection connection;
 struct connection
 {
@@ -33,6 +31,7 @@ struct connection
     connection* next;
 };
 
+int socket_fd;
 connection* connectionList = NULL;
 
 int AddConnection(struct sockaddr_in* address)
@@ -63,7 +62,7 @@ int AddConnection(struct sockaddr_in* address)
     return 1;
 }
 
-connection* FindConnection(in_addr_t address, in_port_t port)
+connection* FindConnection(const struct sockaddr_in* socketAddress)
 {
     connection* lastConnection = connectionList;
     if (lastConnection == NULL)
@@ -71,7 +70,8 @@ connection* FindConnection(in_addr_t address, in_port_t port)
 
     while (lastConnection != NULL)
     {
-        if (lastConnection->address == address && lastConnection->port == port)
+        if (lastConnection->address == socketAddress->sin_addr.s_addr &&
+        lastConnection->port == socketAddress->sin_port)
             return lastConnection;
         lastConnection = lastConnection->next;
     }
@@ -227,7 +227,7 @@ void ReadIncomingMessages()
         //--------------------------------------------------------------------------JANNE LEKER HÄR--------------------------------------------
         if (packetBuffer.flags == 0)
         {
-            connection* clientConnection = FindConnection(senderAddress.sin_addr.s_addr, senderAddress.sin_port);
+            connection* clientConnection = FindConnection(&senderAddress);
             FILE* file;
             file = OpenConnectionFile(clientConnection);
             fprintf(file, "%s", packetBuffer.data);
@@ -241,7 +241,7 @@ void ReadIncomingMessages()
         }
         else if (packetBuffer.flags == PACKETFLAG_FIN)
         { // Oh lordy, kill it with fire
-            connection* clientConnection = FindConnection(senderAddress.sin_addr.s_addr, senderAddress.sin_port);
+            connection* clientConnection = FindConnection(&senderAddress);
             FILE* file;
             file = OpenConnectionFile(clientConnection);
             fprintf(file, "%s\n", packetBuffer.data);
@@ -261,7 +261,7 @@ void ReadIncomingMessages()
         }
         else if (packetBuffer.flags == PACKETFLAG_ACK)
         {
-            connection* clientConnection = FindConnection(senderAddress.sin_addr.s_addr, senderAddress.sin_port);
+            connection* clientConnection = FindConnection(&senderAddress);
             if (clientConnection->status == CONNECTION_STATUS_PENDING)
             {
                 clientConnection->status = CONNECTION_STATUS_ACTIVE;
