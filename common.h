@@ -71,6 +71,7 @@ extern int debugLevel;
 extern int loss;
 extern int corrupt;
 
+
 typedef struct packet packet;
 struct packet
 {

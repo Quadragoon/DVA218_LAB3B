@@ -510,8 +510,6 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 //---------------------------------------------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
-    loss = 0;
-    corrupt = 0;
     system("clear");
     srandom(time(NULL));
     if (argc == 2) {
@@ -622,16 +620,18 @@ int main(int argc, char* argv[]) {
 		// Just sending the user back to the start of the while loop
 		break;
 	    case 4:
-		scanf("%s", commandBuffer);
-		update = strtol(commandBuffer, NULL, 10); // Get a command from the user
-		while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
-		corrupt = update;
-		break;
-	    case 5:
+		printf(RED"Input new value (in percent 1-100): ");
 		scanf("%s", commandBuffer);
 		update = strtol(commandBuffer, NULL, 10); // Get a command from the user
 		while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
 		loss = update;
+		break;
+	    case 5:
+		printf(RED"Input new value (in percent 1-100): ");
+		scanf("%s", commandBuffer);
+		update = strtol(commandBuffer, NULL, 10); // Get a command from the user
+		while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
+		corrupt = update;
 		break;
 	    case 2049:
 		1;

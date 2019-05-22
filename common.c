@@ -9,6 +9,8 @@
 
 
 int debugLevel = 0;
+int loss = 0;
+int corrupt = 0;
 
 int InitializeSocket()
 {
