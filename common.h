@@ -66,6 +66,11 @@ extern int debugLevel;
 
 #define ACK_TABLE_SIZE 2000
 
+//#define PACKET_LOSS 0
+//#define PACKET_CORRUPT 0
+extern int loss;
+extern int corrupt;
+
 typedef struct packet packet;
 struct packet
 {

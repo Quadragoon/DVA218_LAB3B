@@ -6,8 +6,7 @@
 
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
-#define PACKET_LOSS 0
-#define PACKET_CORRUPT 0
+
 
 int debugLevel = 0;
 
@@ -236,7 +235,7 @@ int ErrorGenerator(packet* packet)
     //-------------------------------------------------
 
     // Randomize the chance for a packet to be lost
-    if ((random() % 100) < PACKET_LOSS)
+    if ((random() % 100) < loss)
     {
         DEBUGMESSAGE_EXACT(DEBUGLEVEL_ERRORGENERATOR, RED
                 "[! Packet LoSt !]\n"
@@ -249,7 +248,7 @@ int ErrorGenerator(packet* packet)
     else
     {
         // Randomize the chance for a packet to be corrupted
-        if ((random() % 100) < PACKET_CORRUPT)
+        if ((random() % 100) < corrupt)
         {
             DEBUGMESSAGE_EXACT(DEBUGLEVEL_ERRORGENERATOR, RED
                     "[! Packet CorRUptEd !]\n"
