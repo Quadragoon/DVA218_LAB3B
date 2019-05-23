@@ -80,12 +80,11 @@ unsigned short suggestedFrameSize;
 
 //---------------------------------------------------------------------------------------------------------------
 
+// Function that negotiates the three way handshake between the sender and receiver, negotiation window & frame size etc.
 int NegotiateConnection(byte windowSizeToRequest, unsigned short frameSizeToRequest, ACKmngr* ACKsPointer)
 {
     desiredWindowSize = windowSizeToRequest;
     desiredFrameSize = frameSizeToRequest;
-// Function that negotiates the three way handshake between the sender and receiver, negotiation window & frame size etc.
-int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned short desiredFrameSize) {
     DEBUGMESSAGE(3, "Negotiating connection");
 
     // memset used to make sure that the address fields are filled with '0's
