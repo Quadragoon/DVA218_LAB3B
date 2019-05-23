@@ -1,6 +1,22 @@
-//
-// Created by quadragoon on 2019-05-03.
-//
+/* File: receiver.c
+ *
+ * Author: Joel Risberg,Jan-Ove Leksell
+ * 2019-may
+ * 
+ * Instructions: 
+ * Run through a linux terminal from the folder containing the compiled file. 
+ * Use the command './sender X' where 'X' is the debug level 
+ * Debug Level:( from '0' -[Just about nothing] to '5' -[more] 
+ * Specific debug modes are: 
+ * Checksum calculation:------------------------------------- 15   
+ * Roundtime, average time for sending / ACKing packets:----- 20    
+ * Error generator:------------------------------------------ 25   
+ * Reading packets from the receiver:------------------------ 30
+ * 
+ * Description: 
+ * Setups a socket, listens for and manage connections to senders. Uses checksums to check for errors, reorganize data when needed etc.
+ * Then writes the received data to a text file in the folder "received"
+ */
 
 #include <sys/socket.h>
 #include <stdio.h>

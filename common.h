@@ -73,22 +73,22 @@ extern int loss;
 extern int corrupt;
 
 
-typedef struct packet packet;
+typedef struct packet packet; 
 struct packet
 {
-    byte flags;
-    byte nothing;
-    unsigned short dataLength;
-    unsigned short sequenceNumber;
-    unsigned short checksum;
-    byte data[DATA_BUFFER_SIZE];
+    byte flags;   // Flags that details what a packet contains, such as data, FIN, SYN, ACK etc.
+    byte nothing; // Only here in order to make the packet a even eight bytes long, otherwise the dataLength displays erratic behaviours
+    unsigned short dataLength;      // Length of the packets data
+    unsigned short sequenceNumber;  // Used to keep track of packet order so we can avoid jumbled data
+    unsigned short checksum;        // Stores the calculated "internet checksum" used for detecting corrupted packets
+    byte data[DATA_BUFFER_SIZE];    // The actual data being sent
 };
 
 typedef struct ACKmngr ACKmngr;
 struct ACKmngr
 {
-    int Missing; // Keeps track of how many ACKs are still unaccounted for
-    int Table[ACK_TABLE_SIZE];
+    int Missing;                 // Keeps track of how many ACKs are still unaccounted for
+    int Table[ACK_TABLE_SIZE];   // Stores a '1' or '0' for each currently active ACK, '0' indicating that we are missing a ACK for this packet.
 };
 
 typedef struct timeoutHandlerData timeoutHandlerData;
@@ -101,12 +101,12 @@ struct timeoutHandlerData
     int bufferSlot;
 };
 
-typedef struct roundTimeHandler roundTimeHandler;
+typedef struct roundTimeHandler roundTimeHandler; // Used as an array in Sender.c in order to keep track of how long it takes to receive ACKs on sent packets
 struct roundTimeHandler
 {
-    struct timeval timeStampStart;
-    struct timeval timeStampEnd;
-    unsigned int sequence;
+    struct timeval timeStampStart;  // stores a time value that is set when a packet is sent or re-sent
+    struct timeval timeStampEnd;    // stores a time value that is set when a packets ACK is received.
+    unsigned int sequence;          // keeps track of what packet / ACK this time data is attached to
 };
 
 int InitializeSocket();
