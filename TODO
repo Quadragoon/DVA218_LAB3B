@@ -1,6 +1,6 @@
 1.) Sort Packets at receiver side
-2.) Implement Packet corruption / management into handshake
-3.) Implement Packet corruption / management into receiver
+X  2.) Implement Packet corruption / management into handshake
+X  3.) Implement Packet corruption / management into receiver
 4.) Tie Timeouts into the dynamic roundTime
 5.) Make sure that corrupted packets are not re-sent. (Corruption is supposed to happen in transit after all)
 6.) Implement NAKCs all over the place

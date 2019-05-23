@@ -37,7 +37,7 @@ int socket_fd;
 int connectionStatus = -1;
 int KillThreads = 0;
 byte windowSize = 4;
-unsigned short frameSize = 50;
+unsigned short frameSize = 10;
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
@@ -242,6 +242,9 @@ float roundTimeManager()
                             "]\n"
                             RESET, averageRoundTime, divider, roundTimeSemCounter);
                     divider = 0;
+		    if(averageRoundTime < 0){
+			averageRoundTime = 300;
+		    }
                 }
                 lastReportedRoundTime = roundTime;
             }
@@ -428,13 +431,13 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
         CRASHWITHERROR("malloc() for packetToSend in ThreadedTimeout() failed");
     }
 
-    sleep(TIMEOUT_DELAY);
+    usleep(averageRoundTime*2);
     while (ACKsPointer->Table[sequenceNumber] == 0 && numPreviousTimeouts <= MAX_TIMEOUT_RETRIES && KillThreads != 1)
     {
         numPreviousTimeouts++;
         WritePacket(packetToSend, flags, dataBufferArray[bufferSlot].data, frameSize, sequenceNumber);
         SendPacket(socket_fd, packetToSend, &receiverAddress, sizeof(receiverAddress));
-        sleep(TIMEOUT_DELAY);
+        usleep(averageRoundTime*2);
     }
 
     free(packetToSend);
@@ -510,10 +513,7 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
             dataBufferArray[bufferSlot].data[j - messageTracker] = readstring[j];
         }
 
-        if (i == packets - 1)
-            WritePacket(packetToSend, PACKETFLAG_FIN, (void*) (dataBufferArray[bufferSlot].data), frameSize, seq);
-        else
-            WritePacket(packetToSend, 0, (void*) (dataBufferArray[bufferSlot].data), frameSize, seq);
+        WritePacket(packetToSend, 0, (void*) (dataBufferArray[bufferSlot].data), frameSize, seq);
 
         DEBUGMESSAGE(3, BLU
                 "\n----------------------Sending Packet:["
