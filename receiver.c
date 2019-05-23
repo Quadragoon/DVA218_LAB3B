@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <zconf.h>
 #include <sys/stat.h>
+#include <semaphore.h>
 
 #include "common.h"
 
@@ -143,11 +144,6 @@ int StoreBufferedData(connection* clientConnection, const packet* packetToStore)
         DEBUGMESSAGE(0, "StoreBufferedData malloc() failed");
         return -1;
     }
-    /*if ((newListItem->storedData = malloc(sizeof(packet))) == NULL)
-    {
-        DEBUGMESSAGE(0, "StoreBufferedData packet malloc() failed");
-        return -1;
-    }*/
 
     CopyPacket(packetToStore, &(newListItem->storedData));
     newListItem->next = NULL;
@@ -197,6 +193,19 @@ bufferedPacketList* RetrieveBufferedData(connection* clientConnection)
         }
     }
     return NULL;
+}
+
+int CheckBufferedDataForSequence(connection* clientConnection, unsigned short sequence)
+{
+    bufferedPacketList* bufferCursor = clientConnection->packetList;
+    while (bufferCursor != NULL)
+    {
+        if (bufferCursor->storedData.sequenceNumber == sequence)
+            return 1;
+        else
+            bufferCursor = bufferCursor->next;
+    }
+    return 0;
 }
 
 int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in senderAddress,
@@ -347,6 +356,17 @@ void ReadIncomingMessages()
                     if (clientConnection->packetList != NULL)
                     {
                         DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Retrieving buffered data, seq at %d\n", clientConnection->sequence);
+                        if (debugLevel == DEBUGLEVEL_REORDER)
+                        {
+                            printf(YELTEXT("Current packet storage: "));
+                            retrievedPacketList = clientConnection->packetList;
+                            while (retrievedPacketList != NULL)
+                            {
+                                printf(YELTEXT("%d "), retrievedPacketList->storedData.sequenceNumber);
+                                retrievedPacketList = retrievedPacketList->next;
+                            }
+                            printf("\n");
+                        }
                         retrievedPacketList = RetrieveBufferedData(clientConnection);
                         while (retrievedPacketList != NULL)
                         {
@@ -361,8 +381,15 @@ void ReadIncomingMessages()
                 }
                 else if (packetBuffer.sequenceNumber > clientConnection->sequence)
                 {
-                    DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Stored packet with sequence %d\n", packetBuffer.sequenceNumber);
-                    StoreBufferedData(clientConnection, &packetBuffer);
+                    if (CheckBufferedDataForSequence(clientConnection, packetBuffer.sequenceNumber))
+                    {
+                        DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Packet with seq %d already in buffer\n", packetBuffer.sequenceNumber);
+                    }
+                    else
+                    {
+                        DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Storing packet with sequence %d\n", packetBuffer.sequenceNumber);
+                        StoreBufferedData(clientConnection, &packetBuffer);
+                    }
                 }
                 else
                 {

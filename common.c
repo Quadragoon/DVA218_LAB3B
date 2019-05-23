@@ -63,7 +63,7 @@ SendPacket(int socket_fd, packet* packetToSend, const struct sockaddr_in* receiv
                             addressLength);
         if (retval < 0)
         {
-            CRASHWITHERROR("SendMessage() failed");
+            CRASHWITHERROR("SendPacket() failed");
         }
         else
             return retval;
@@ -81,7 +81,7 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
                           addressLength);
     if (retval < 0)
     {
-        DEBUGMESSAGE(0, "recvfrom() in ReceivePacket() failed\nThis means something WENT WEIRD!");
+        DEBUGMESSAGE(0, "recvfrom() in ReceivePacket() failed");
         return -1;
     }
     else

@@ -36,7 +36,7 @@
 int socket_fd;
 int connectionStatus = -1;
 int KillThreads = 0;
-byte windowSize = 4;
+byte windowSize = 20;
 unsigned short frameSize = 100;
 
 struct sockaddr_in receiverAddress;
@@ -59,7 +59,6 @@ struct roundTimeHandler timeStamper[50];
 
 #define MAX_MESSAGE_LENGTH 20000
 
-#define TIMEOUT_DELAY 2
 #define MAX_TIMEOUT_RETRIES 99999
 #define BASE_AVERAGE 5
 #define TIMEOUT_USLEEP_TIME (averageRoundTime * 2)
@@ -127,6 +126,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
                 gettimeofday(&timeStamp2, NULL);
                 roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
                 //------------------------------------------------------
+
                 return 1;
             }
             else
@@ -186,7 +186,7 @@ float roundTimeManager()
 {
     memset(timeStamper, 0, 50 * 8);
     float roundTimeTable[BASE_AVERAGE];
-    memset(roundTimeTable, 0, BASE_AVERAGE);
+    memset(roundTimeTable, 0, sizeof(float) * BASE_AVERAGE);
     float lastReportedRoundTime = 0;
     int i = 0;
     int divider = 0;
@@ -248,8 +248,8 @@ float roundTimeManager()
                             "]\n"
                             RESET, averageRoundTime, divider, roundTimeSemCounter);
                     divider = 0;
-		    
-		    
+
+
                 }
                 lastReportedRoundTime = roundTime;
             }
@@ -323,6 +323,7 @@ void* ReadPackets(ACKmngr* ACKsPointer)
                     }//else
 			//printf(RED"Roundtime [ %.1f ]\n"RESET, roundTime);
                 }
+
                 //--------------------------------------------
 
                 while (ACKsPointer->Table[lowestSequenceAwaited] == 1)
@@ -442,7 +443,7 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
     {
         numPreviousTimeouts++;
         WritePacket(packetToSend, flags, dataBufferArray[bufferSlot].data, frameSize, sequenceNumber);
-	
+
 	//---------------------------------------------------------------------------------------------------------------
 	for(int i = 0; i < 50; i++){
 	    if(timeStamper[i].sequence = sequenceNumber){
@@ -450,27 +451,20 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
 		break;
 	    }
 	}
-        
+
 	//---------------------------------------------------------------------------------------------------------------
-	
+
         SendPacket(socket_fd, packetToSend, &receiverAddress, sizeof(receiverAddress));
         usleep(TIMEOUT_USLEEP_TIME);
     }
     if(numPreviousTimeouts >= MAX_TIMEOUT_RETRIES){
 	for(int i = 0; i < 5; i++){
-	    printf(RED"MAX TIMEOUT RETRIES REACHED!\n"RESET);    
+	    printf(RED"MAX TIMEOUT RETRIES REACHED!\n"RESET);
 	}
     }
 
     free(packetToSend);
-    DEBUGMESSAGE_NONEWLINE(3, MAG
-            "-Timeout thread ["
-            RESET
-            " %d "
-            MAG
-            "] Exit-"
-            RESET
-            "\n", sequenceNumber);
+    DEBUGMESSAGE_NONEWLINE(3, MAG"-Timeout thread ["RESET" %d "MAG"] Exit-"RESET"\n", sequenceNumber);
     pthread_exit(NULL);
 }
 
@@ -767,15 +761,14 @@ int main(int argc, char* argv[])
                 unsigned int receiverAddressLength = sizeof(receiverAddress);
                 packet* endGame;
                 endGame = malloc(sizeof(packet));
-                //strcpy(endGame->data, "byeybe");
                 if (endGame == NULL)
                 {
                     CRASHWITHERROR("malloc() for dataBufferArray in SlidingWindow() failed");
                 }
-                WritePacket(endGame, PACKETFLAG_FIN, "", 0, 1);
+                WritePacket(endGame, PACKETFLAG_FIN, "byebye", frameSize, 1);
                 SendPacket(socket_fd, endGame, &receiverAddress, receiverAddressLength);
                 KillThreads = 1; // Make sure that we let the other threads know that we are closing down the client
-		break;
+                break;
             default:
                 printf("Wrong input\n");
         }
