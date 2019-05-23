@@ -5,4 +5,4 @@ X  4.) Tie Timeouts into the dynamic roundTime
 X  5.) Make sure that corrupted packets are not re-sent. (Corruption is supposed to happen in transit after all)
 6.) Implement NAKCs all over the place
 7.) Resends for handshake
-8.) roundTime not based on resends.
+X 8.) roundTime not based on resends.

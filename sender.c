@@ -60,9 +60,9 @@ struct roundTimeHandler timeStamper[50];
 #define MAX_MESSAGE_LENGTH 20000
 
 #define TIMEOUT_DELAY 2
-#define MAX_TIMEOUT_RETRIES 999
+#define MAX_TIMEOUT_RETRIES 99999
 #define BASE_AVERAGE 5
-#define TIMEOUT_USLEEP_TIME (averageRoundTime * 4)
+#define TIMEOUT_USLEEP_TIME (averageRoundTime * 2)
 
 //---------------------------------------------------------------------------------------------------------------
 
@@ -455,6 +455,11 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
 	
         SendPacket(socket_fd, packetToSend, &receiverAddress, sizeof(receiverAddress));
         usleep(TIMEOUT_USLEEP_TIME);
+    }
+    if(numPreviousTimeouts >= MAX_TIMEOUT_RETRIES){
+	for(int i = 0; i < 5; i++){
+	    printf(RED"MAX TIMEOUT RETRIES REACHED!\n"RESET);    
+	}
     }
 
     free(packetToSend);
