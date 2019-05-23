@@ -15,7 +15,7 @@
  * 
  * Description: 
  * Request connection to the receiver, sends everything within the text file "message.txt" to the receiver through a TCP like implementation
- * using different helper threads to listen for messages from the receiver, managing a dynamic round time calculator and checking timeouts 
+ * using different helper threads to listen for messages from the receiver, managing a dynamic round time calculator and checking timeouts
  */
 
 #include <sys/socket.h>
@@ -32,6 +32,9 @@
 
 #include "common.h"
 
+void* ThreadedACKTimeout(timeoutHandlerData* timeoutData);
+void* ThreadedSYNTimeout(timeoutHandlerData* timeoutData);
+
 int socket_fd;
 int connectionStatus = -1;
 int KillThreads = 0;
@@ -46,10 +49,17 @@ sem_t ackSemaphore;
 sem_t windowSemaphore;
 int lowestSequenceAwaited = -1;
 
+char* addressString = "127.0.0.1";
+
 sem_t roundTimeSemaphore;
 float roundTime = 0;
-float averageRoundTime = 0;
+float averageRoundTime = 10000;
 struct roundTimeHandler timeStamper[50];
+
+byte desiredWindowSize;
+unsigned short desiredFrameSize;
+byte suggestedWindowSize;
+unsigned short suggestedFrameSize;
 
 #define MIN_ACCEPTED_WINDOW_SIZE 1
 #define MAX_ACCEPTED_WINDOW_SIZE 16
@@ -65,14 +75,18 @@ struct roundTimeHandler timeStamper[50];
 // Change BASE_AVERAGE in order to lower or raise the number of samples that the average runtime manager bases its results on
 #define BASE_AVERAGE 5
 
-// 
+//
 #define TIMEOUT_USLEEP_TIME (averageRoundTime * 2)
 
 //---------------------------------------------------------------------------------------------------------------
+
+int NegotiateConnection(byte windowSizeToRequest, unsigned short frameSizeToRequest, ACKmngr* ACKsPointer)
+{
+    desiredWindowSize = windowSizeToRequest;
+    desiredFrameSize = frameSizeToRequest;
 // Function that negotiates the three way handshake between the sender and receiver, negotiation window & frame size etc.
 int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned short desiredFrameSize) {
     DEBUGMESSAGE(3, "Negotiating connection");
-    struct timeval timeStamp1, timeStamp2;
 
     // memset used to make sure that the address fields are filled with '0's
     memset(&receiverAddress, 0, sizeof (struct sockaddr_in));
@@ -84,7 +98,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
     receiverAddress.sin_port = htons(LISTENING_PORT);
 
     // Get retval(return value) from inet_pton - (convert IPv4 and IPv6 addresses from text to binary form).  
-    int retval = inet_pton(receiverAddress.sin_family, receiverIP, &(receiverAddress.sin_addr));
+    int retval = inet_pton(receiverAddress.sin_family, addressString, &(receiverAddress.sin_addr));
 
     if (retval == -1) {
 	CRASHWITHERROR("NegotiateConnection() failed to parse IP address");
@@ -92,19 +106,10 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 	DEBUGMESSAGE(0, YELTEXT("Invalid IP address entered"));
     }
 
-    unsigned int receiverAddressLength = sizeof (receiverAddress);
-    unsigned int senderAddressLength = sizeof (senderAddress);
+    unsigned int receiverAddressLength = sizeof(receiverAddress);
 
-    // the 'packet'-struct is defined in common.h
-    packet packetToSend, packetBuffer;
-    /*
-    byte flags;
-    byte nothing;
-    unsigned short dataLength;
-    unsigned short sequenceNumber;
-    unsigned short checksum;
-    byte data[DATA_BUFFER_SIZE];
-     */
+    // 'packet' struct defined in common.h
+    packet packetToSend;
 
     byte packetData[3];
     packetData[0] = desiredWindowSize;
@@ -113,64 +118,19 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
     packetData[2] = desiredFrameSizeBytes[1];
     WritePacket(&packetToSend, PACKETFLAG_SYN, (void*) packetData, 3, 0);
 
-    gettimeofday(&timeStamp1, NULL); //--------------------------------------TIMESTAMP1
-
-    SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
-    if (ReceivePacket(socket_fd, &packetBuffer, &senderAddress, &senderAddressLength) != -1) {
-	byte suggestedWindowSize = packetBuffer.data[0];
-	unsigned short suggestedFrameSize = ntohs((packetBuffer.data[1] * 256) + packetBuffer.data[2]);
-
-	if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK) {
-	    DEBUGMESSAGE(3, "SYN+ACK: Flags "
-		    GRNTEXT("OK"));
-	    if (suggestedWindowSize == desiredWindowSize && suggestedFrameSize == desiredFrameSize) {
-		DEBUGMESSAGE(2, "SYN+ACK: Data "
-			GRNTEXT("OK"));
-		windowSize = suggestedWindowSize;
-		frameSize = suggestedFrameSize;
-		//------------------------------------------------------TIMESTAMP2
-		gettimeofday(&timeStamp2, NULL);
-		roundTime = (timeStamp2.tv_usec - timeStamp1.tv_usec);
-		//------------------------------------------------------
-
-		return 1;
-	    } else {
-		DEBUGMESSAGE(2, "SYN+ACK: Data "
-			REDTEXT("NOT OK."));
-		DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters don't match desired ones. Data corrupted?");
-		return -1;
-	    }
-
-	} else if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_NAK) {
-	    DEBUGMESSAGE(3, "SYN+NAK: Flags "
-		    GRNTEXT("OK"));
-	    if (suggestedWindowSize == desiredWindowSize && suggestedFrameSize == desiredFrameSize) {
-		DEBUGMESSAGE(1, "SYN+NAK: Data "
-			REDTEXT("VERY NOT OK."));
-		DEBUGMESSAGE(1, "SYN+NAK: Received NAK suggestion for desired parameters.\n"
-			YELTEXT("Something is wrong."));
-		return -1;
-	    } else if (suggestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE &&
-		    suggestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE &&
-		    suggestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE &&
-		    suggestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE) {
-		DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
-		DEBUGMESSAGE(3, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
-			suggestedWindowSize, suggestedFrameSize);
-		return NegotiateConnection(receiverIP, suggestedWindowSize, suggestedFrameSize);
-	    } else {
-		DEBUGMESSAGE(2, "SYN+ACK: Data "
-			REDTEXT("NOT OK."));
-		DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters out of bounds. Connection impossible.");
-		return -1;
-
-	    }
-	} else {
-	    DEBUGMESSAGE(2, "SYN+ACK: Flags "
-		    REDTEXT("NOT OK."));
-	    return -1;
-	}
+    timeoutHandlerData* timeoutData;
+    if ((timeoutData = malloc(sizeof(timeoutHandlerData))) == NULL)
+    {
+        CRASHWITHERROR("malloc for timeoutHandlerData in NegotiateConnection() failed");
     }
+    ACKsPointer->Table[0] = 0;
+    timeoutData->sequenceNumber = 0;
+    timeoutData->flags = PACKETFLAG_SYN;
+    timeoutData->ACKsPointer = ACKsPointer;
+
+    pthread_t timeoutThread;
+    pthread_create(&timeoutThread, NULL, (void*) ThreadedSYNTimeout, timeoutData);
+    SendPacket(socket_fd, &packetToSend, &receiverAddress, receiverAddressLength);
     return 0;
 }
 
@@ -178,7 +138,7 @@ int NegotiateConnection(const char* receiverIP, byte desiredWindowSize, unsigned
 // The function that continously updates the roundTime average, this value is then used as a base for the timeouts
 
 float roundTimeManager() {
-    memset(timeStamper, 0, 50 * 8); 
+    memset(timeStamper, 0, 50 * 8);
     float roundTimeTable[BASE_AVERAGE];
     memset(roundTimeTable, 0, sizeof (float) * BASE_AVERAGE);
     float lastReportedRoundTime = 0;
@@ -280,51 +240,123 @@ void* ReadPackets(ACKmngr* ACKsPointer) {
 		ACKsPointer->Missing--;
 		DEBUGMESSAGE(4, "ACK received. Missing: %d", ACKsPointer->Missing);
 
-		DEBUGMESSAGE_EXACT(DEBUGLEVEL_READPACKETS, CYN
-			"ACK: ["
-			RESET
-			" %d "
-			CYN
-			"] Received     ACKs.Missing:["
-			RESET
-			" %d "
-			CYN
-			"]\n"
-			RESET, packetSequenceNumber, ACKsPointer->Missing);
-		//-------------------------------------------- Updating the roundTime
-		for (int i = 0; i < 50; i++) {
-		    if (timeStamper[i].sequence == packetSequenceNumber) {
-			gettimeofday(&(timeStamper[i].timeStampEnd), NULL); //--------------------------------------TIMESTAMPEND
-			roundTime = (timeStamper[i].timeStampEnd.tv_usec - timeStamper[i].timeStampStart.tv_usec);
-			break;
-		    }//else
-		    //printf(RED"Roundtime [ %.1f ]\n"RESET, roundTime);
-		}
+                DEBUGMESSAGE_EXACT(DEBUGLEVEL_READPACKETS, CYN
+                        "ACK: ["
+                        RESET
+                        " %d "
+                        CYN
+                        "] Received     ACKs.Missing:["
+                        RESET
+                        " %d "
+                        CYN
+                        "]\n"
+                        RESET, packetSequenceNumber, ACKsPointer->Missing);
+                //-------------------------------------------- Updating the roundTime
+                for (int i = 0; i < 50; i++)
+                {
+                    if (timeStamper[i].sequence == packetSequenceNumber)
+                    {
+                        gettimeofday(&(timeStamper[i].timeStampEnd), NULL); //--------------------------------------TIMESTAMPEND
+                        roundTime = (timeStamper[i].timeStampEnd.tv_usec - timeStamper[i].timeStampStart.tv_usec);
+                        break;
+                    }
+                }
 
 		//--------------------------------------------
 
-		while (ACKsPointer->Table[lowestSequenceAwaited] == 1) {
-		    sem_post(&windowSemaphore);
-		    ACKsPointer->Table[lowestSequenceAwaited] = -1; // No longer waiting for ACK on this sequenceNumber
-		    lowestSequenceAwaited++;
-		    DEBUGMESSAGE(4, "windowSemaphore posted, now waiting for %d", lowestSequenceAwaited);
-		}
-	    } else {
-		DEBUGMESSAGE(3, YELTEXT("WARNING: ")
-			"Received ACK packet for sequenceNumber not waiting for ACK");
-		DEBUGMESSAGE(3, "  Got sequenceNumber %d (which is on status %d)", packetSequenceNumber, ACKsPointer->Table[packetSequenceNumber]);
-	    }
-	    sem_post(&ackSemaphore);
-	} else if (packetBuffer.flags == PACKETFLAG_FIN) {
-	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
-	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
-	    // -------------------------------------------------------------TODO: Send FIN ACK HERE
-	    KillThreads = 1;
-	    printf(RED"------------ReadPackets KillThreads: ["RESET" %d "RED"]------------\n"RESET, KillThreads);
-	    printf(RED"------------ReadPackets thread shutting down------------\n"RESET);
-	    usleep(1000);
-	    pthread_exit(NULL);
-	}
+                while (ACKsPointer->Table[lowestSequenceAwaited] == 1)
+                {
+                    sem_post(&windowSemaphore);
+                    ACKsPointer->Table[lowestSequenceAwaited] = -1; // No longer waiting for ACK on this sequenceNumber
+                    lowestSequenceAwaited++;
+                    DEBUGMESSAGE(4, "windowSemaphore posted, now waiting for %d", lowestSequenceAwaited);
+                }
+            }
+            else
+            {
+                DEBUGMESSAGE(3, YELTEXT("WARNING: ")
+                        "Received ACK packet for sequenceNumber not waiting for ACK");
+                DEBUGMESSAGE(3, "  Got sequenceNumber %d (which is on status %d)", packetSequenceNumber, ACKsPointer->Table[packetSequenceNumber]);
+            }
+            sem_post(&ackSemaphore);
+        }
+        else if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_ACK)
+        {
+            suggestedWindowSize = packetBuffer.data[0];
+            suggestedFrameSize = ntohs((packetBuffer.data[1] * 256) + packetBuffer.data[2]);
+            ACKsPointer->Table[0] = -1;
+            DEBUGMESSAGE(3, "SYN+ACK: Flags "
+                    GRNTEXT("OK"));
+            if (suggestedWindowSize == desiredWindowSize && suggestedFrameSize == desiredFrameSize)
+            {
+                DEBUGMESSAGE(2, "SYN+ACK: Data "
+                        GRNTEXT("OK"));
+                windowSize = suggestedWindowSize;
+                frameSize = suggestedFrameSize;
+                connectionStatus = 1; // connectionStatus set to "connected"
+                if (sem_init(&windowSemaphore, 0, windowSize) == -1)
+                {
+                    CRASHWITHERROR("Semaphore initialization failed");
+                }
+                printf(GRN"Connection to Receiver Established!\n"RESET);
+
+                usleep(5000);
+            }
+            else
+            {
+                ACKsPointer->Table[0] = -1;
+                connectionStatus = -1; // connectionStatus set to "not connected"
+                DEBUGMESSAGE(2, "SYN+ACK: Data "
+                        REDTEXT("NOT OK."));
+                DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters don't match desired ones. Data corrupted?");
+            }
+
+        }
+        else if (packetBuffer.flags & PACKETFLAG_SYN && packetBuffer.flags & PACKETFLAG_NAK)
+        {
+            suggestedWindowSize = packetBuffer.data[0];
+            suggestedFrameSize = ntohs((packetBuffer.data[1] * 256) + packetBuffer.data[2]);
+            DEBUGMESSAGE(3, "SYN+NAK: Flags "
+                    GRNTEXT("OK"));
+            if (suggestedWindowSize == desiredWindowSize && suggestedFrameSize == desiredFrameSize)
+            {
+                DEBUGMESSAGE(1, "SYN+NAK: Data "
+                        REDTEXT("VERY NOT OK."));
+                DEBUGMESSAGE(1, "SYN+NAK: Received NAK suggestion for desired parameters.\n"
+                        YELTEXT("Something is wrong."));
+            }
+            else if (suggestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE &&
+                     suggestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE &&
+                     suggestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE &&
+                     suggestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE)
+            {
+                DEBUGMESSAGE(1, "SYN+NAK: Renegotiating connection...");
+                DEBUGMESSAGE(3, "SYN+NAK: Trying again with parameters window:%d and frame:%d",
+                             suggestedWindowSize, suggestedFrameSize);
+
+                ACKsPointer->Table[0] = -1;
+                sleep(1);
+                NegotiateConnection(suggestedWindowSize, suggestedFrameSize, ACKsPointer);
+            }
+            else
+            {
+                DEBUGMESSAGE(2, "SYN+ACK: Data "
+                        REDTEXT("NOT OK."));
+                DEBUGMESSAGE(1, "SYN+ACK: Suggested parameters out of bounds. Connection impossible.");
+                ACKsPointer->Table[0] = -1;
+            }
+        }
+        else if (packetBuffer.flags == PACKETFLAG_FIN)
+        {
+            // -------------------------------------------------------------TODO: Send FIN ACK HERE
+            // -------------------------------------------------------------TODO: Send FIN ACK HERE
+            // -------------------------------------------------------------TODO: Send FIN ACK HERE
+            KillThreads = 1;
+            printf(RED"------------ReadPackets KillThreads: ["RESET" %d "RED"]------------\n"RESET, KillThreads);
+            printf(RED"------------ReadPackets thread shutting down------------\n"RESET);
+            usleep(1000);
+            pthread_exit(NULL);
+        }
 
     }
 
@@ -382,7 +414,8 @@ void LoadMessageFromFile(char readstring[MAX_MESSAGE_LENGTH]) {
 
 //---------------------------------------------------------------------------------------------------------------
 
-void* ThreadedTimeout(timeoutHandlerData* timeoutData) {
+void* ThreadedACKTimeout(timeoutHandlerData* timeoutData)
+{
     // Transfer values into statically allocated memory so we can free the dynamic memory
     ACKmngr* ACKsPointer = timeoutData->ACKsPointer;
     int sequenceNumber = timeoutData->sequenceNumber;
@@ -393,12 +426,13 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData) {
 
     int numPreviousTimeouts = 0;
 
-    DEBUGMESSAGE(3, "ThreadedTimeout for seq %d started", sequenceNumber);
+    DEBUGMESSAGE(3, "ThreadedACKTimeout for seq %d started", sequenceNumber);
 
     packet* packetToSend;
-    if ((packetToSend = malloc(sizeof (packet))) == NULL) {
-	printf("Sequencenumber for malloc fail: %d\n", sequenceNumber);
-	CRASHWITHERROR("malloc() for packetToSend in ThreadedTimeout() failed");
+    if ((packetToSend = malloc(sizeof(packet))) == NULL)
+    {
+        printf("Sequencenumber for malloc fail: %d\n", sequenceNumber);
+        CRASHWITHERROR("malloc() for packetToSend in ThreadedACKTimeout() failed");
     }
 
     usleep(TIMEOUT_USLEEP_TIME);
@@ -432,7 +466,62 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData) {
 
 //---------------------------------------------------------------------------------------------------------------
 
-void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
+void* ThreadedSYNTimeout(timeoutHandlerData* timeoutData)
+{
+    // Transfer values into statically allocated memory so we can free the dynamic memory
+    ACKmngr* ACKsPointer = timeoutData->ACKsPointer;
+    int sequenceNumber = timeoutData->sequenceNumber;
+    free(timeoutData);
+
+    byte packetData[3];
+    packetData[0] = desiredWindowSize;
+    byte* desiredFrameSizeBytes = (byte*) (&desiredFrameSize);
+    packetData[1] = desiredFrameSizeBytes[0];
+    packetData[2] = desiredFrameSizeBytes[1];
+
+    int numPreviousTimeouts = 0;
+
+    DEBUGMESSAGE(3, "ThreadedSYNTimeout for seq %d started", sequenceNumber);
+
+    packet* packetToSend;
+    if ((packetToSend = malloc(sizeof(packet))) == NULL)
+    {
+        printf("Sequencenumber for malloc fail: %d\n", sequenceNumber);
+        CRASHWITHERROR("malloc() for packetToSend in ThreadedSYNTimeout() failed");
+    }
+
+    usleep(TIMEOUT_USLEEP_TIME);
+    while (ACKsPointer->Table[sequenceNumber] == 0 && numPreviousTimeouts <= MAX_TIMEOUT_RETRIES && KillThreads != 1)
+    {
+        numPreviousTimeouts++;
+        WritePacket(packetToSend, PACKETFLAG_SYN, packetData, 3, sequenceNumber);
+
+        //---------------------------------------------------------------------------------------------------------------
+        for(int i = 0; i < 50; i++){
+            if(timeStamper[i].sequence = sequenceNumber){
+                gettimeofday(&(timeStamper[i].timeStampStart), NULL); //--------------------------------------UPDATE TIMESTAMPSTART
+                break;
+            }
+        }
+
+        //---------------------------------------------------------------------------------------------------------------
+
+        SendPacket(socket_fd, packetToSend, &receiverAddress, sizeof(receiverAddress));
+        usleep(TIMEOUT_USLEEP_TIME);
+    }
+    if(numPreviousTimeouts >= MAX_TIMEOUT_RETRIES){
+        for(int i = 0; i < 5; i++){
+            printf(RED"MAX TIMEOUT RETRIES REACHED!\n"RESET);
+        }
+    }
+
+    free(packetToSend);
+    DEBUGMESSAGE_NONEWLINE(3, MAG"-Timeout thread ["RESET" %d "MAG"] Exit-"RESET"\n", sequenceNumber);
+    pthread_exit(NULL);
+}
+
+void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
+{
     system("clear"); // Clean up the console
     DEBUGMESSAGE(2, YELTEXT("---[ Sending Message ]--- "));
     float messageDivided = 0;
@@ -530,9 +619,9 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer) {
 	timeoutHandler->dataBufferArray = dataBufferArray;
 	timeoutHandler->flags = packetToSend->flags;
 
-	pthread_t timeoutThread;
-	pthread_create(&timeoutThread, NULL, (void*) ThreadedTimeout, timeoutHandler);
-	SendPacket(socket_fd, packetToSend, &receiverAddress, receiverAddressLength);
+        pthread_t timeoutThread;
+        pthread_create(&timeoutThread, NULL, (void*) ThreadedACKTimeout, timeoutHandler);
+        SendPacket(socket_fd, packetToSend, &receiverAddress, receiverAddressLength);
 
 	ACKsPointer->Table[seq] = 0;
 	(ACKsPointer->Missing)++;
@@ -606,102 +695,100 @@ int main(int argc, char* argv[]) {
 	command = strtol(commandBuffer, NULL, 10); // Get a command from the user
 	while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
 
-	switch (command) {
-	    case 1:
-		system("clear"); // Clean up the console
-		if (connectionStatus == -1) {
-		    connectionStatus = 0; // connectionStatus set to "pending"
-		    int retval = NegotiateConnection("127.0.0.1", windowSize, frameSize);
-		    if (retval == 1) {// Connection successful!
-			connectionStatus = 1; // connectionStatus set to "connected"
-			if (sem_init(&windowSemaphore, 0, windowSize) == -1) {
-			    CRASHWITHERROR("Semaphore initialization failed");
-			}
-		    } else if (retval == 0) {// Error, but probably because incorrect parameters were entered
-			connectionStatus = -1;
-		    } else if (retval == -1) {// Error. Probably bad.
-			connectionStatus = -1;
-		    }
-		    printf(GRN"Connection to Receiver Established!\n"RESET);
-
-		    usleep(5000);
-		} else if (connectionStatus == 1) {
-		    DEBUGMESSAGE(0, "Error: already connected!");
-		} else if (connectionStatus == 0) {
-		    DEBUGMESSAGE(0, "Error: connection status is 'pending'. Something wrong?");
-		} else {
-		    CRASHWITHMESSAGE("Connection status undefined when calling NegotiateConnection()! Weird stuff!");
-		}
-		break;
-	    case 2:
-		if (connectionStatus == 1) {
-		    system("clear"); // Clean up the console
-		    // Create the thread checking for messages from the receiver------
-		    printf(YEL"Setting up ReadPackets thread..."RESET);
-		    pthread_t thread; //Thread ID
-		    if (pthread_create(&thread, NULL, (void*) ReadPackets, &ACKs) != 0) {
-			CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
-		    }
-		    usleep(5000);
-		    printf(GRN"Done!\n"RESET);
-		    //----------------------------------------------------------------
-		    // Create the thread managing the average roundtime calculation------
-		    printf(YEL"Setting up roundTimeManager thread..."RESET);
-		    if (pthread_create(&thread, NULL, (void*) roundTimeManager, NULL) != 0) {
-			CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
-		    }
-		    usleep(5000);
-		    printf(GRN"Done!\n"RESET);
-		    //----------------------------------------------------------------
-		    usleep(5000);
-		    printf(YEL"Reading message from file..."RESET);
-		    LoadMessageFromFile(readstring);
-		    usleep(5000);
-		    printf(GRN"Done!\n"RESET);
-		    printf(YEL"Sending message!..."RESET);
-		    SlidingWindow(readstring, &ACKs); // Send the Message
-		    usleep(1000);
-		} else {
-		    DEBUGMESSAGE(0, "Error: not connected to receiver!");
-		}
-		break;
-	    case 3:
-		LoadMessageFromFile(readstring);
-		printf("%s\n", readstring);
-		// Just sending the user back to the start of the while loop
-		break;
-	    case 4:
-		printf(RED"Input new value (in percent 1-100): ");
-		scanf("%s", commandBuffer);
-		update = strtol(commandBuffer, NULL, 10); // Get a command from the user
-		while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
-		loss = update;
-		break;
-	    case 5:
-		printf(RED"Input new value (in percent 1-100): ");
-		scanf("%s", commandBuffer);
-		update = strtol(commandBuffer, NULL, 10); // Get a command from the user
-		while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
-		corrupt = update;
-		break;
-	    case 2049:
-		1;
-		system("clear");
-		unsigned int receiverAddressLength = sizeof (receiverAddress);
-		packet* endGame;
-		endGame = malloc(sizeof (packet));
-		if (endGame == NULL) {
-		    CRASHWITHERROR("malloc() for dataBufferArray in SlidingWindow() failed");
-		}
-
-		WritePacket(endGame, PACKETFLAG_FIN, "byebye", frameSize, 1);
-
-		SendPacket(socket_fd, endGame, &receiverAddress, receiverAddressLength);
-		KillThreads = 1; // Make sure that we let the other threads know that we are closing down the client
-		break;
-	    default:
-		printf("Wrong input\n");
-	}
+        switch (command)
+        {
+            case 1:
+                system("clear"); // Clean up the console
+                if (connectionStatus == -1)
+                {
+                    // Create the thread checking for messages from the receiver------
+                    printf(YEL"Setting up ReadPackets thread..."RESET);
+                    pthread_t thread; //Thread ID
+                    if (pthread_create(&thread, NULL, (void*) ReadPackets, &ACKs) != 0)
+                    {
+                        CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
+                    }
+                    usleep(5000);
+                    printf(GRN"Done!\n"RESET);
+                    //----------------------------------------------------------------
+                    // Create the thread managing the average roundtime calculation------
+                    printf(YEL"Setting up roundTimeManager thread..."RESET);
+                    if (pthread_create(&thread, NULL, (void*) roundTimeManager, NULL) != 0)
+                    {
+                        CRASHWITHERROR("pthread_create(ReadPackets) failed in main()");
+                    }
+                    usleep(5000);
+                    printf(GRN"Done!\n"RESET);
+                    connectionStatus = 0; // connectionStatus set to "pending"
+                    NegotiateConnection(windowSize, frameSize, &ACKs);
+                }
+                else if (connectionStatus == 1)
+                {
+                    DEBUGMESSAGE(0, "Error: already connected!");
+                }
+                else if (connectionStatus == 0)
+                {
+                    DEBUGMESSAGE(0, "Error: connection status is 'pending'. Something wrong?");
+                }
+                else
+                {
+                    CRASHWITHMESSAGE("Connection status undefined when calling NegotiateConnection()! Weird stuff!");
+                }
+                break;
+            case 2:
+                if (connectionStatus == 1)
+                {
+                    //----------------------------------------------------------------
+                    usleep(5000);
+                    printf(YEL"Reading message from file..."RESET);
+                    LoadMessageFromFile(readstring);
+                    usleep(5000);
+                    printf(GRN"Done!\n"RESET);
+                    printf(YEL"Sending message!..."RESET);
+                    SlidingWindow(readstring, &ACKs); // Send the Message
+                    usleep(1000);
+                }
+                else
+                {
+                    DEBUGMESSAGE(0, "Error: not connected to receiver!");
+                }
+                break;
+            case 3:
+                LoadMessageFromFile(readstring);
+                printf("%s\n", readstring);
+                // Just sending the user back to the start of the while loop
+                break;
+            case 4:
+                printf(RED"Input new value (in percent 1-100): ");
+                scanf("%s", commandBuffer);
+                update = strtol(commandBuffer, NULL, 10); // Get a command from the user
+                while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
+                loss = update;
+                break;
+            case 5:
+                printf(RED"Input new value (in percent 1-100): ");
+                scanf("%s", commandBuffer);
+                update = strtol(commandBuffer, NULL, 10); // Get a command from the user
+                while ((c = getchar()) != '\n' && c != EOF); // Cleaning out the readbuffer
+                corrupt = update;
+                break;
+            case 2049:
+                1;
+                system("clear");
+                unsigned int receiverAddressLength = sizeof(receiverAddress);
+                packet* endGame;
+                endGame = malloc(sizeof(packet));
+                if (endGame == NULL)
+                {
+                    CRASHWITHERROR("malloc() for dataBufferArray in SlidingWindow() failed");
+                }
+                WritePacket(endGame, PACKETFLAG_FIN, "byebye", frameSize, 1);
+                SendPacket(socket_fd, endGame, &receiverAddress, receiverAddressLength);
+                KillThreads = 1; // Make sure that we let the other threads know that we are closing down the client
+                break;
+            default:
+                printf("Wrong input\n");
+        }
     }
 
     //

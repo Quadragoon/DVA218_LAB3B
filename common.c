@@ -7,7 +7,6 @@
 #define CRASHWITHERROR(message) perror(message);exit(EXIT_FAILURE)
 #define LISTENING_PORT 23456
 
-
 int debugLevel = 0;
 int loss = 0;
 int corrupt = 0;
