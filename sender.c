@@ -37,7 +37,7 @@ int socket_fd;
 int connectionStatus = -1;
 int KillThreads = 0;
 byte windowSize = 4;
-unsigned short frameSize = 500;
+unsigned short frameSize = 100;
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
@@ -62,6 +62,7 @@ struct roundTimeHandler timeStamper[50];
 #define TIMEOUT_DELAY 2
 #define MAX_TIMEOUT_RETRIES 999
 #define BASE_AVERAGE 5
+#define TIMEOUT_USLEEP_TIME (averageRoundTime * 4)
 
 //---------------------------------------------------------------------------------------------------------------
 
@@ -226,6 +227,11 @@ float roundTimeManager()
                 if (divider > 0)
                 {
                     averageRoundTime = (averageRoundTime / divider);
+		    if(averageRoundTime < 300){
+			averageRoundTime = 300;
+		    }else if(averageRoundTime > 3000){
+			averageRoundTime = 300;
+		    }
                     DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN
                             "averageRoundTime set to: ["
                             RESET
@@ -242,9 +248,8 @@ float roundTimeManager()
                             "]\n"
                             RESET, averageRoundTime, divider, roundTimeSemCounter);
                     divider = 0;
-		    if(averageRoundTime < 0){
-			averageRoundTime = 300;
-		    }
+		    
+		    
                 }
                 lastReportedRoundTime = roundTime;
             }
@@ -312,10 +317,11 @@ void* ReadPackets(ACKmngr* ACKsPointer)
                 {
                     if (timeStamper[i].sequence == packetSequenceNumber)
                     {
-                        gettimeofday(&timeStamper[i].timeStampEnd, NULL); //--------------------------------------TIMESTAMPEND
+                        gettimeofday(&(timeStamper[i].timeStampEnd), NULL); //--------------------------------------TIMESTAMPEND
                         roundTime = (timeStamper[i].timeStampEnd.tv_usec - timeStamper[i].timeStampStart.tv_usec);
                         break;
-                    }
+                    }//else
+			//printf(RED"Roundtime [ %.1f ]\n"RESET, roundTime);
                 }
                 //--------------------------------------------
 
@@ -431,13 +437,24 @@ void* ThreadedTimeout(timeoutHandlerData* timeoutData)
         CRASHWITHERROR("malloc() for packetToSend in ThreadedTimeout() failed");
     }
 
-    usleep(averageRoundTime*2);
+    usleep(TIMEOUT_USLEEP_TIME);
     while (ACKsPointer->Table[sequenceNumber] == 0 && numPreviousTimeouts <= MAX_TIMEOUT_RETRIES && KillThreads != 1)
     {
         numPreviousTimeouts++;
         WritePacket(packetToSend, flags, dataBufferArray[bufferSlot].data, frameSize, sequenceNumber);
+	
+	//---------------------------------------------------------------------------------------------------------------
+	for(int i = 0; i < 50; i++){
+	    if(timeStamper[i].sequence = sequenceNumber){
+		gettimeofday(&(timeStamper[i].timeStampStart), NULL); //--------------------------------------UPDATE TIMESTAMPSTART
+		break;
+	    }
+	}
+        
+	//---------------------------------------------------------------------------------------------------------------
+	
         SendPacket(socket_fd, packetToSend, &receiverAddress, sizeof(receiverAddress));
-        usleep(averageRoundTime*2);
+        usleep(TIMEOUT_USLEEP_TIME);
     }
 
     free(packetToSend);
@@ -537,8 +554,8 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
         //-------------------------------------------------------------
 
         //Providing timestamps for the roundTimeManager to use
-        timeStamper[stampID].sequence = dataBufferArray[bufferSlot].sequenceNumber;
-        gettimeofday(&timeStamper[stampID].timeStampStart, NULL); //--------------------------------------TIMESTAMPSTART
+        timeStamper[stampID].sequence = packetToSend->sequenceNumber;
+        gettimeofday(&(timeStamper[stampID].timeStampStart), NULL); //--------------------------------------TIMESTAMPSTART
         //--------------------------------------------------------------
 
         stampID++;
@@ -744,15 +761,16 @@ int main(int argc, char* argv[])
                 system("clear");
                 unsigned int receiverAddressLength = sizeof(receiverAddress);
                 packet* endGame;
-                endGame = malloc(sizeof(packet) * (windowSize + 1));
+                endGame = malloc(sizeof(packet));
                 //strcpy(endGame->data, "byeybe");
                 if (endGame == NULL)
                 {
                     CRASHWITHERROR("malloc() for dataBufferArray in SlidingWindow() failed");
                 }
-                WritePacket(endGame, PACKETFLAG_FIN, "byebye", frameSize, 1);
+                WritePacket(endGame, PACKETFLAG_FIN, "", 0, 1);
                 SendPacket(socket_fd, endGame, &receiverAddress, receiverAddressLength);
                 KillThreads = 1; // Make sure that we let the other threads know that we are closing down the client
+		break;
             default:
                 printf("Wrong input\n");
         }
