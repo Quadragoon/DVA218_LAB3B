@@ -20,6 +20,13 @@
 #define CONNECTION_STATUS_PENDING 1
 #define CONNECTION_STATUS_ACTIVE 2
 
+typedef struct bufferedPacketList bufferedPacketList;
+struct bufferedPacketList
+{
+    packet storedData;
+    bufferedPacketList* next;
+};
+
 typedef struct connection connection;
 struct connection
 {
@@ -27,6 +34,8 @@ struct connection
     in_port_t port;
     byte status;
     int id;
+    unsigned short sequence;
+    bufferedPacketList* packetList;
 
     connection* next;
 };
@@ -46,7 +55,9 @@ int AddConnection(struct sockaddr_in* address)
     newConnection->address = address->sin_addr.s_addr;
     newConnection->port = address->sin_port;
     newConnection->status = CONNECTION_STATUS_PENDING;
-    newConnection->id = random()%10000000;
+    newConnection->id = random() % 10000000;
+    newConnection->sequence = 0;
+    newConnection->packetList = NULL;
     newConnection->next = NULL;
 
     connection* lastConnection = connectionList;
@@ -71,7 +82,7 @@ connection* FindConnection(const struct sockaddr_in* socketAddress)
     while (lastConnection != NULL)
     {
         if (lastConnection->address == socketAddress->sin_addr.s_addr &&
-        lastConnection->port == socketAddress->sin_port)
+            lastConnection->port == socketAddress->sin_port)
             return lastConnection;
         lastConnection = lastConnection->next;
     }
@@ -124,6 +135,70 @@ int CopyPacket(const packet* src, packet* dest)
     return 1; // should return something else on fail but, uh, checking for fail in a simple function like this seems weird to do
 }
 
+int StoreBufferedData(connection* clientConnection, const packet* packetToStore)
+{
+    bufferedPacketList* newListItem;
+    if ((newListItem = malloc(sizeof(bufferedPacketList))) == NULL)
+    {
+        DEBUGMESSAGE(0, "StoreBufferedData malloc() failed");
+        return -1;
+    }
+    /*if ((newListItem->storedData = malloc(sizeof(packet))) == NULL)
+    {
+        DEBUGMESSAGE(0, "StoreBufferedData packet malloc() failed");
+        return -1;
+    }*/
+
+    CopyPacket(packetToStore, &(newListItem->storedData));
+    newListItem->next = NULL;
+
+    bufferedPacketList* listPointer = clientConnection->packetList;
+    if (listPointer == NULL)
+    {
+        clientConnection->packetList = newListItem;
+        return 1;
+    }
+    else
+    {
+        int listPointerSequence = listPointer->storedData.sequenceNumber;
+        if (packetToStore->sequenceNumber < listPointerSequence)
+        {
+            newListItem->next = clientConnection->packetList;
+            clientConnection->packetList = newListItem;
+            return 1;
+        }
+
+        while (listPointer->next != NULL)
+        {
+            listPointerSequence = listPointer->next->storedData.sequenceNumber;
+            if (packetToStore->sequenceNumber < listPointerSequence)
+            {
+                newListItem->next = listPointer->next;
+                listPointer->next = newListItem;
+                return 1;
+            }
+            listPointer = listPointer->next;
+        }
+        listPointer->next = newListItem;
+        return 1;
+    }
+}
+
+bufferedPacketList* RetrieveBufferedData(connection* clientConnection)
+{
+    if (clientConnection->packetList != NULL)
+    {
+        int firstBufferedSequence = clientConnection->packetList->storedData.sequenceNumber;
+        if (clientConnection->sequence == firstBufferedSequence)
+        {
+            bufferedPacketList* packetList = clientConnection->packetList;
+            clientConnection->packetList = clientConnection->packetList->next;
+            return packetList;
+        }
+    }
+    return NULL;
+}
+
 int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in senderAddress,
                       unsigned int senderAddressLength)
 {
@@ -136,7 +211,10 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
     if (packetBuffer.flags & PACKETFLAG_SYN)
     {
         byte packetData[3];
-        DEBUGMESSAGE(3, "SYN: Flags "GRN"OK"RESET);
+        DEBUGMESSAGE(3, "SYN: Flags "
+                GRN
+                "OK"
+                RESET);
         byte requestedWindowSize = packetBuffer.data[0];
         byte suggestedWindowSize;
 
@@ -144,48 +222,72 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
         unsigned short suggestedFrameSize;
         if (requestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && requestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
         {
-            DEBUGMESSAGE(3, "SYN: Requested window size "GRN"OK"RESET);
+            DEBUGMESSAGE(3, "SYN: Requested window size "
+                    GRN
+                    "OK"
+                    RESET);
             suggestedWindowSize = requestedWindowSize;
         }
         else if (requestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE)
         {
-            DEBUGMESSAGE(3, "SYN: Requested window size "BLU"NEGOTIABLE"RESET);
+            DEBUGMESSAGE(3, "SYN: Requested window size "
+                    BLU
+                    "NEGOTIABLE"
+                    RESET);
             suggestedWindowSize = MIN_ACCEPTED_WINDOW_SIZE;
         }
         else if (requestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
         {
-            DEBUGMESSAGE(3, "SYN: Requested window size "BLU"NEGOTIABLE"RESET);
+            DEBUGMESSAGE(3, "SYN: Requested window size "
+                    BLU
+                    "NEGOTIABLE"
+                    RESET);
             suggestedWindowSize = MAX_ACCEPTED_WINDOW_SIZE;
         }
         else
         {
-            DEBUGMESSAGE(2, "SYN: Requested window size "RED"NOT OK"RESET);
+            DEBUGMESSAGE(2, "SYN: Requested window size "
+                    RED
+                    "NOT OK"
+                    RESET);
             return -1;
         }
 
         if (requestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE && requestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE)
         {
-            DEBUGMESSAGE(3, "SYN: Requested frame size "GRN"OK"RESET);
+            DEBUGMESSAGE(3, "SYN: Requested frame size "
+                    GRN
+                    "OK"
+                    RESET);
             suggestedFrameSize = requestedFrameSize;
         }
         else if (requestedFrameSize < MIN_ACCEPTED_FRAME_SIZE)
         {
-            DEBUGMESSAGE(3, "SYN: Requested frame size "BLU"NEGOTIABLE"RESET);
+            DEBUGMESSAGE(3, "SYN: Requested frame size "
+                    BLU
+                    "NEGOTIABLE"
+                    RESET);
             suggestedFrameSize = MIN_ACCEPTED_FRAME_SIZE;
         }
         else if (requestedFrameSize > MAX_ACCEPTED_FRAME_SIZE)
         {
-            DEBUGMESSAGE(3, "SYN: Requested frame size "BLU"NEGOTIABLE"RESET);
+            DEBUGMESSAGE(3, "SYN: Requested frame size "
+                    BLU
+                    "NEGOTIABLE"
+                    RESET);
             suggestedFrameSize = MAX_ACCEPTED_FRAME_SIZE;
         }
         else
         {
-            DEBUGMESSAGE(2, "SYN: Requested frame size "RED"NOT OK"RESET);
+            DEBUGMESSAGE(2, "SYN: Requested frame size "
+                    RED
+                    "NOT OK"
+                    RESET);
             return -1;
         }
 
         packetData[0] = suggestedWindowSize;
-        byte* suggestedFrameSizeBytes = (byte*)&suggestedFrameSize;
+        byte* suggestedFrameSizeBytes = (byte*) &suggestedFrameSize;
         packetData[1] = suggestedFrameSizeBytes[0];
         packetData[2] = suggestedFrameSizeBytes[1];
 
@@ -206,7 +308,10 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
     }
     else
     {
-        DEBUGMESSAGE(2, "SYN: Flags "RED"NOT OK"RESET);
+        DEBUGMESSAGE(2, "SYN: Flags "
+                RED
+                "NOT OK"
+                RESET);
     }
 
     return 0;
@@ -231,10 +336,39 @@ void ReadIncomingMessages()
             {
                 connection* clientConnection = FindConnection(&senderAddress);
                 FILE* file;
-                file = OpenConnectionFile(clientConnection);
-                fprintf(file, "%s", packetBuffer.data);
-                fclose(file);
 
+                if (packetBuffer.sequenceNumber == clientConnection->sequence)
+                {
+                    file = OpenConnectionFile(clientConnection);
+                    fprintf(file, "%s", packetBuffer.data);
+                    clientConnection->sequence++;
+
+                    bufferedPacketList* retrievedPacketList;
+                    if (clientConnection->packetList != NULL)
+                    {
+                        DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Retrieving buffered data, seq at %d\n", clientConnection->sequence);
+                        retrievedPacketList = RetrieveBufferedData(clientConnection);
+                        while (retrievedPacketList != NULL)
+                        {
+                            DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Retrieved packet at sequence %d\n", retrievedPacketList->storedData.sequenceNumber);
+                            fprintf(file, "%s", retrievedPacketList->storedData.data);
+                            clientConnection->sequence++;
+                            free(retrievedPacketList);
+                            retrievedPacketList = RetrieveBufferedData(clientConnection);
+                        }
+                    }
+                    fclose(file);
+                }
+                else if (packetBuffer.sequenceNumber > clientConnection->sequence)
+                {
+                    DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Stored packet with sequence %d\n", packetBuffer.sequenceNumber);
+                    StoreBufferedData(clientConnection, &packetBuffer);
+                }
+                else
+                {
+                    DEBUGMESSAGE(1, YELTEXT("WARNING: ")"Received packet with sequence number %d but looking for %d or greater",
+                            packetBuffer.sequenceNumber, clientConnection->sequence);
+                }
                 packet packetToSend;
                 memset(&packetToSend, 0, sizeof(packet));
                 WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,

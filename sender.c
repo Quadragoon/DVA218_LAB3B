@@ -37,7 +37,7 @@ int socket_fd;
 int connectionStatus = -1;
 int KillThreads = 0;
 byte windowSize = 4;
-unsigned short frameSize = 10;
+unsigned short frameSize = 500;
 
 struct sockaddr_in receiverAddress;
 struct sockaddr_in senderAddress;
