@@ -6,7 +6,7 @@
  * Instructions: 
  * Run through a linux terminal from the folder containing the compiled file. 
  * Use the command './sender X' where 'X' is the debug level 
- * Debug Level:( from '0' -[Just about nothing] to '5' -[more] 
+ * Debug Level: from '0' -[Just about nothing] to '5' -[more]
  * Specific debug modes are: 
  * Checksum calculation:------------------------------------- 15   
  * Roundtime, average time for sending / ACKing packets:----- 20    

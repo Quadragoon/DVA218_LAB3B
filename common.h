@@ -1,6 +1,13 @@
-//
-// Created by quadragoon on 2019-05-06.
-//
+/* File: common.h
+ *
+ * Author: Joel Risberg,Jan-Ove Leksell
+ * 2019-may
+ *
+ *
+ * Description:
+ * Header file used by both the Sender and Receiver programs. Many global #define directives
+ * are included in this file.
+ */
 
 // DEBUG LEVEL TABLE! If you use debug levels, put 'em here.
 // General levels:

@@ -6,7 +6,7 @@
  * Instructions: 
  * Run through a linux terminal from the folder containing the compiled file. 
  * (while the receiver app is already running), using the command './sender X' where 'X' is the debug level 
- * Debug Level:( from '0' -[Just about nothing] to '5' -[more] 
+ * Debug Level: from '0' -[Just about nothing] to '5' -[more]
  * Specific debug modes are: 
  * Checksum calculation:------------------------------------- 15   
  * Roundtime, average time for sending / ACKing packets:----- 20    
@@ -14,7 +14,7 @@
  * Reading packets from the receiver:------------------------ 30
  * 
  * Description: 
- * Request connection to the receiver, sends everything within the text file "message.txt" to the receiver through a TCP like implementation
+ * Request connection to the receiver, sends everything within the text file "message" to the receiver through a TCP like implementation
  * using different helper threads to listen for messages from the receiver, managing a dynamic round time calculator and checking timeouts
  */
 

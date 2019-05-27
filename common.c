@@ -1,6 +1,12 @@
-//
-// Created by quadragoon on 2019-05-06.
-//
+/* File: common.c
+ *
+ * Author: Joel Risberg,Jan-Ove Leksell
+ * 2019-may
+ *
+ *
+ * Description:
+ * Common functions and library values used in the sender and receiver programs.
+ */
 
 #include "common.h"
 
