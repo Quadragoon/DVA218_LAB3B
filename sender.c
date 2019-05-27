@@ -483,7 +483,8 @@ void* ThreadedACKTimeout(timeoutHandlerData* timeoutData)
 
         //---------------------------------------------------------------------------------------------------------------
 
-        DEBUGMESSAGE(1, REDTEXT("TIMEOUT")" for packet #%d. Resending...", sequenceNumber);
+        DEBUGMESSAGE(1, REDTEXT("TIMEOUT")
+                " for packet #%d. Resending...", sequenceNumber);
         SendPacket(socket_fd, packetToSend, &receiverAddress, sizeof(receiverAddress));
         usleep(TIMEOUT_USLEEP_TIME);
     }
@@ -693,9 +694,9 @@ void SlidingWindow(char* readstring, ACKmngr* ACKsPointer)
         bufferSlot++;
         messageTracker += frameSize;
     }
-    DEBUGMESSAGE(0, CYNTEXT("+------------------------------------+"));
-    DEBUGMESSAGE(0, CYNTEXT("| All packets sent! Awaiting ACKs... |"));
-    DEBUGMESSAGE(0, CYNTEXT("+------------------------------------+"));
+    DEBUGMESSAGE(0, CYNTEXT("+------------------------------------+\n"
+                            "| All packets sent! Awaiting ACKs... |\n"
+                            "+------------------------------------+"));
     do
     { usleep(100000); }
     while (ACKsPointer->Missing > 0);
@@ -869,4 +870,3 @@ int main(int argc, char* argv[])
     system("clear"); // Clean up the console
     exit(EXIT_SUCCESS);
 }
-
