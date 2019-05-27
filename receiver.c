@@ -235,6 +235,7 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
 
     if (packetBuffer.flags & PACKETFLAG_SYN)
     {
+        DEBUGMESSAGE(0, YELTEXT("Client connecting..."));
         byte packetData[3];
         DEBUGMESSAGE(3, "SYN: Flags "
                 GRN
@@ -248,66 +249,50 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
         if (requestedWindowSize >= MIN_ACCEPTED_WINDOW_SIZE && requestedWindowSize <= MAX_ACCEPTED_WINDOW_SIZE)
         {
             DEBUGMESSAGE(3, "SYN: Requested window size "
-                    GRN
-                    "OK"
-                    RESET);
+                    GRNTEXT("OK"));
             suggestedWindowSize = requestedWindowSize;
         }
         else if (requestedWindowSize < MIN_ACCEPTED_WINDOW_SIZE)
         {
             DEBUGMESSAGE(3, "SYN: Requested window size "
-                    BLU
-                    "NEGOTIABLE"
-                    RESET);
+                    BLUTEXT("NEGOTIABLE"));
             suggestedWindowSize = MIN_ACCEPTED_WINDOW_SIZE;
         }
         else if (requestedWindowSize > MAX_ACCEPTED_WINDOW_SIZE)
         {
             DEBUGMESSAGE(3, "SYN: Requested window size "
-                    BLU
-                    "NEGOTIABLE"
-                    RESET);
+                    BLUTEXT("NEGOTIABLE"));
             suggestedWindowSize = MAX_ACCEPTED_WINDOW_SIZE;
         }
         else
         {
             DEBUGMESSAGE(2, "SYN: Requested window size "
-                    RED
-                    "NOT OK"
-                    RESET);
+                    REDTEXT("NOT OK"));
             return -1;
         }
 
         if (requestedFrameSize >= MIN_ACCEPTED_FRAME_SIZE && requestedFrameSize <= MAX_ACCEPTED_FRAME_SIZE)
         {
             DEBUGMESSAGE(3, "SYN: Requested frame size "
-                    GRN
-                    "OK"
-                    RESET);
+                    GRNTEXT("OK"));
             suggestedFrameSize = requestedFrameSize;
         }
         else if (requestedFrameSize < MIN_ACCEPTED_FRAME_SIZE)
         {
             DEBUGMESSAGE(3, "SYN: Requested frame size "
-                    BLU
-                    "NEGOTIABLE"
-                    RESET);
+                    BLUTEXT("NEGOTIABLE"));
             suggestedFrameSize = MIN_ACCEPTED_FRAME_SIZE;
         }
         else if (requestedFrameSize > MAX_ACCEPTED_FRAME_SIZE)
         {
             DEBUGMESSAGE(3, "SYN: Requested frame size "
-                    BLU
-                    "NEGOTIABLE"
-                    RESET);
+                    BLUTEXT("NEGOTIABLE"));
             suggestedFrameSize = MAX_ACCEPTED_FRAME_SIZE;
         }
         else
         {
             DEBUGMESSAGE(2, "SYN: Requested frame size "
-                    RED
-                    "NOT OK"
-                    RESET);
+                    REDTEXT("NOT OK"));
             return -1;
         }
 
@@ -318,6 +303,7 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
 
         if (requestedWindowSize == suggestedWindowSize && requestedFrameSize == suggestedFrameSize)
         {
+            DEBUGMESSAGE(0, "Parameters accepted, sending "GRNTEXT("SYN+ACK"));
             WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_ACK,
                         packetData, sizeof(packetData), packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
@@ -325,6 +311,24 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
         }
         else
         {
+            DEBUGMESSAGE(0, "Parameters not accepted.");
+            if (requestedWindowSize == suggestedWindowSize)
+            {
+                DEBUGMESSAGE(0, "\tWindow size: %d, parameter "GRNTEXT("OK"), requestedWindowSize);
+            }
+            else
+            {
+                DEBUGMESSAGE(0, "\tWindow size: %d, parameter "REDTEXT("NOT OK"), requestedWindowSize);
+            }
+            if (requestedFrameSize == suggestedFrameSize)
+            {
+                DEBUGMESSAGE(0, "\tFrame size: %d, parameter "GRNTEXT("OK"), requestedFrameSize);
+            }
+            else
+            {
+                DEBUGMESSAGE(0, "\tFrame size: %d, parameter "REDTEXT("NOT OK"), requestedFrameSize);
+            }
+            DEBUGMESSAGE(0, "Sending suggestion for window: %d and frame: %d", suggestedWindowSize, suggestedFrameSize);
             WritePacket(&packetToSend, PACKETFLAG_SYN | PACKETFLAG_NAK,
                         packetData, sizeof(packetData), packetBuffer.sequenceNumber);
             SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
@@ -334,9 +338,7 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
     else
     {
         DEBUGMESSAGE(2, "SYN: Flags "
-                RED
-                "NOT OK"
-                RESET);
+                REDTEXT("NOT OK"));
     }
 
     return 0;
@@ -344,6 +346,7 @@ int ReceiveConnection(const packet* connectionRequestPacket, struct sockaddr_in 
 
 void ReadIncomingMessages()
 {
+    DEBUGMESSAGE(0, "Receiver initiated. Listening for packets...");
     struct sockaddr_in senderAddress;
     memset(&senderAddress, 0, sizeof(struct sockaddr_in));
     unsigned int senderAddressLength = sizeof(senderAddress);
@@ -362,76 +365,97 @@ void ReadIncomingMessages()
                 connection* clientConnection = FindConnection(&senderAddress);
                 FILE* file;
 
-                if (packetBuffer.sequenceNumber == clientConnection->sequence)
+                if (clientConnection == NULL)
                 {
-                    file = OpenConnectionFile(clientConnection);
-                    fprintf(file, "%s", packetBuffer.data);
-                    clientConnection->sequence++;
-
-                    bufferedPacketList* retrievedPacketList;
-                    if (clientConnection->packetList != NULL)
-                    {
-                        DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Retrieving buffered data, seq at %d\n", clientConnection->sequence);
-                        if (debugLevel == DEBUGLEVEL_REORDER)
-                        {
-                            printf(YELTEXT("Current packet storage: "));
-                            retrievedPacketList = clientConnection->packetList;
-                            while (retrievedPacketList != NULL)
-                            {
-                                printf(YELTEXT("%d "), retrievedPacketList->storedData.sequenceNumber);
-                                retrievedPacketList = retrievedPacketList->next;
-                            }
-                            printf("\n");
-                        }
-                        retrievedPacketList = RetrieveBufferedData(clientConnection);
-                        while (retrievedPacketList != NULL)
-                        {
-                            DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Retrieved packet at sequence %d\n", retrievedPacketList->storedData.sequenceNumber);
-                            fprintf(file, "%s", retrievedPacketList->storedData.data);
-                            clientConnection->sequence++;
-                            free(retrievedPacketList);
-                            retrievedPacketList = RetrieveBufferedData(clientConnection);
-                        }
-                    }
-                    fclose(file);
-                }
-                else if (packetBuffer.sequenceNumber > clientConnection->sequence)
-                {
-                    if (CheckBufferedDataForSequence(clientConnection, packetBuffer.sequenceNumber))
-                    {
-                        DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Packet with seq %d already in buffer\n", packetBuffer.sequenceNumber);
-                    }
-                    else
-                    {
-                        DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Storing packet with sequence %d\n", packetBuffer.sequenceNumber);
-                        StoreBufferedData(clientConnection, &packetBuffer);
-                    }
+                    DEBUGMESSAGE(0, YELTEXT("Received message from invalid client"));
                 }
                 else
                 {
-                    DEBUGMESSAGE(1, YELTEXT("WARNING: ")"Received packet with sequence number %d but looking for %d or greater",
-                            packetBuffer.sequenceNumber, clientConnection->sequence);
+                    if (packetBuffer.sequenceNumber == clientConnection->sequence)
+                    {
+                        DEBUGMESSAGE(0, GRNTEXT("Received in-order packet, sequence %d"), clientConnection->sequence);
+                        file = OpenConnectionFile(clientConnection);
+                        fprintf(file, "%s", packetBuffer.data);
+                        clientConnection->sequence++;
+
+                        bufferedPacketList* retrievedPacketList;
+                        if (clientConnection->packetList != NULL)
+                        {
+                            DEBUGMESSAGE(0, YELTEXT("Retrieving buffered data, looking for %d"),
+                                         clientConnection->sequence);
+                            if (debugLevel == DEBUGLEVEL_REORDER)
+                            {
+                                printf(YELTEXT("Current packet storage: "));
+                                retrievedPacketList = clientConnection->packetList;
+                                while (retrievedPacketList != NULL)
+                                {
+                                    printf(YELTEXT("%d "), retrievedPacketList->storedData.sequenceNumber);
+                                    retrievedPacketList = retrievedPacketList->next;
+                                }
+                                printf("\n");
+                            }
+                            retrievedPacketList = RetrieveBufferedData(clientConnection);
+                            while (retrievedPacketList != NULL)
+                            {
+                                DEBUGMESSAGE(0, GRNTEXT("Retrieved packet at sequence %d"),
+                                             retrievedPacketList->storedData.sequenceNumber);
+                                fprintf(file, "%s", retrievedPacketList->storedData.data);
+                                clientConnection->sequence++;
+                                free(retrievedPacketList);
+                                retrievedPacketList = RetrieveBufferedData(clientConnection);
+                            }
+                        }
+                        fclose(file);
+                    }
+
+                    else if (packetBuffer.sequenceNumber > clientConnection->sequence)
+                    {
+                        if (CheckBufferedDataForSequence(clientConnection, packetBuffer.sequenceNumber))
+                        {
+                            DEBUGMESSAGE_EXACT(DEBUGLEVEL_REORDER, "Packet with seq %d already in buffer\n", packetBuffer.sequenceNumber);
+                        }
+                        else
+                        {
+                            DEBUGMESSAGE(0, YELTEXT("Storing packet with sequence %d"),
+                                         packetBuffer.sequenceNumber);
+                            StoreBufferedData(clientConnection, &packetBuffer);
+                        }
+                    }
+                    else
+                    {
+                        DEBUGMESSAGE(1, YELTEXT("WARNING: ")
+                                "Received packet with sequence number %d but looking for %d or greater",
+                                     packetBuffer.sequenceNumber, clientConnection->sequence);
+                    }
+                    packet packetToSend;
+                    memset(&packetToSend, 0, sizeof(packet));
+                    WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
+                                packetBuffer.sequenceNumber);
+                    SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
                 }
-                packet packetToSend;
-                memset(&packetToSend, 0, sizeof(packet));
-                WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
-                            packetBuffer.sequenceNumber);
-                SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
             }
             else if (packetBuffer.flags == PACKETFLAG_FIN)
             { // Oh lordy, kill it with fire
                 connection* clientConnection = FindConnection(&senderAddress);
                 FILE* file;
-                file = OpenConnectionFile(clientConnection);
-                fprintf(file, "%s\n", packetBuffer.data);
-                fclose(file);
-                DEBUGMESSAGE(1, "FINished writing to file %d", clientConnection->id);
 
-                packet packetToSend;
-                memset(&packetToSend, 0, sizeof(packet));
-                WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
-                            packetBuffer.sequenceNumber);
-                SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+                if (clientConnection == NULL)
+                {
+                    DEBUGMESSAGE(0, YELTEXT("Received message from invalid client"));
+                }
+                else
+                {
+                    file = OpenConnectionFile(clientConnection);
+                    fprintf(file, "%s\n", packetBuffer.data);
+                    fclose(file);
+                    DEBUGMESSAGE(1, "FINished writing to file %d", clientConnection->id);
+
+                    packet packetToSend;
+                    memset(&packetToSend, 0, sizeof(packet));
+                    WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
+                                packetBuffer.sequenceNumber);
+                    SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+                }
             }
                 //--------------------------------------------------------------------------JANNE LEKTE HÄR--------------------------------------------
             else if (packetBuffer.flags == PACKETFLAG_SYN)
@@ -441,9 +465,14 @@ void ReadIncomingMessages()
             else if (packetBuffer.flags == PACKETFLAG_ACK)
             {
                 connection* clientConnection = FindConnection(&senderAddress);
-                if (clientConnection->status == CONNECTION_STATUS_PENDING)
+                if (clientConnection != NULL && clientConnection->status == CONNECTION_STATUS_PENDING)
                 {
+                    DEBUGMESSAGE(0, GRNTEXT("Client connected. ID set to %d"), clientConnection->id);
                     clientConnection->status = CONNECTION_STATUS_ACTIVE;
+                }
+                else if (clientConnection == NULL)
+                {
+                    DEBUGMESSAGE(0, YELTEXT("Received message from invalid client"));
                 }
             }
             if (packetBuffer.sequenceNumber == 10E25)

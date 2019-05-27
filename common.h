@@ -45,9 +45,9 @@
 #define CRASHWITHMESSAGE(message) printf("%s\n", message);exit(EXIT_FAILURE)
 
 extern int debugLevel;
-#define DEBUGMESSAGE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__); printf("\n");} (1==1)
-#define DEBUGMESSAGE_NONEWLINE(level, ...) if (debugLevel >= level){printf(__VA_ARGS__);} (1==1)
-#define DEBUGMESSAGE_EXACT(level, ...) if (debugLevel == level){printf(__VA_ARGS__);} (1==1)
+#define DEBUGMESSAGE(level, ...) if (debugLevel >= (level)){printf(__VA_ARGS__); printf("\n");} (1==1)
+#define DEBUGMESSAGE_NONEWLINE(level, ...) if (debugLevel >= (level)){printf(__VA_ARGS__);} (1==1)
+#define DEBUGMESSAGE_EXACT(level, ...) if (debugLevel == (level)){printf(__VA_ARGS__);} (1==1)
 
 #define DEBUGLEVEL_CHECKSUM 15
 #define DEBUGLEVEL_ROUNDTIME 20
