@@ -280,7 +280,8 @@ void* ReadPackets(ACKmngr* ACKsPointer)
                         if (timeStamper[i].sequence == packetSequenceNumber)
                         {
                             gettimeofday(&(timeStamper[i].timeStampEnd), NULL); //--------------------------------------TIMESTAMPEND
-                            //roundTime = (timeStamper[i].timeStampEnd.tv_usec - timeStamper[i].timeStampStart.tv_usec);
+                            roundTime = (timeStamper[i].timeStampEnd.tv_usec - timeStamper[i].timeStampStart.tv_usec);
+                            sem_post(&roundTimeSemaphore);
                             DEBUGMESSAGE_EXACT(DEBUGLEVEL_ROUNDTIME, CYN
                                     " -timeStamper["
                                     RESET
@@ -779,7 +780,7 @@ int main(int argc, char* argv[])
 
     pthread_t readPacketsThread = 0;
     pthread_t roundTimeManagerThread = 0;
-    if (sem_init(&roundTimeSemaphore, 0, windowSize) == -1)
+    if (sem_init(&roundTimeSemaphore, 0, 1) == -1)
     {
         CRASHWITHERROR("Semaphore roundTimeSemaphore initialization failed in main()");
     }
