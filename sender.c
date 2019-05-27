@@ -474,7 +474,7 @@ void* ThreadedACKTimeout(timeoutHandlerData* timeoutData)
         //---------------------------------------------------------------------------------------------------------------
         for (int i = 0; i < 50; i++)
         {
-            if (timeStamper[i].sequence = sequenceNumber)
+            if (timeStamper[i].sequence == sequenceNumber)
             {
                 gettimeofday(&(timeStamper[i].timeStampStart), NULL); //--------------------------------------UPDATE TIMESTAMPSTART
                 break;
@@ -543,7 +543,7 @@ void* ThreadedSYNTimeout(timeoutHandlerData* timeoutData)
         //---------------------------------------------------------------------------------------------------------------
         for (int i = 0; i < 50; i++)
         {
-            if (timeStamper[i].sequence = sequenceNumber)
+            if (timeStamper[i].sequence == sequenceNumber)
             {
                 gettimeofday(&(timeStamper[i].timeStampStart), NULL); //--------------------------------------UPDATE TIMESTAMPSTART
                 break;
