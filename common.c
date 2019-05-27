@@ -86,7 +86,7 @@ ReceivePacket(int socket_fd, packet* packetBuffer, struct sockaddr_in* senderAdd
     else
     {
         packetBuffer->checksum = ntohs(
-                packetBuffer->checksum); // TODO: behövs av någon anledning, inte hundra på varför
+                packetBuffer->checksum);
         unsigned short checksum = CalculateChecksum(packetBuffer);
         if (checksum == 65535u)
             return retval;

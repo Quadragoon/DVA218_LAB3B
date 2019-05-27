@@ -448,16 +448,15 @@ void ReadIncomingMessages()
                     file = OpenConnectionFile(clientConnection);
                     fprintf(file, "%s\n", packetBuffer.data);
                     fclose(file);
-                    DEBUGMESSAGE(1, "FINished writing to file %d", clientConnection->id);
+                    DEBUGMESSAGE(0, "FINished writing to file %d", clientConnection->id);
 
                     packet packetToSend;
                     memset(&packetToSend, 0, sizeof(packet));
-                    WritePacket(&packetToSend, PACKETFLAG_ACK, NULL, 0,
-                                packetBuffer.sequenceNumber);
+                    WritePacket(&packetToSend, PACKETFLAG_FIN | PACKETFLAG_ACK, NULL, 0, packetBuffer.sequenceNumber);
                     SendPacket(socket_fd, &packetToSend, &senderAddress, senderAddressLength);
+                    RemoveConnectionByID(clientConnection->id);
                 }
             }
-                //--------------------------------------------------------------------------JANNE LEKTE HÄR--------------------------------------------
             else if (packetBuffer.flags == PACKETFLAG_SYN)
             {
                 ReceiveConnection(&packetBuffer, senderAddress, senderAddressLength);
